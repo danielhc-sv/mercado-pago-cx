@@ -1,1549 +1,1160 @@
-"""
-CX Command — Quality Management
-App principal Streamlit com salvamento automático no Google Sheets.
-"""
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
+import json
+import os
 from datetime import datetime, date
-import anthropic
-import mammoth
-import io
-
-import sheets as db
-
-# ─────────────────────────────────────────
-# CONFIGURAÇÃO DA PÁGINA
-# ─────────────────────────────────────────
+from pathlib import Path
+ 
+# ─── Configuração da página ───────────────────────────────────────────────────
 st.set_page_config(
-    page_title="CX Command — Quality Management",
-    page_icon="⊞",
+    page_title="Leal — CX",
+    page_icon="🌌",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
-# ─────────────────────────────────────────
-# CSS GLOBAL
-# ─────────────────────────────────────────
-st.markdown("""
+ 
+# ─── CSS: Tema Galáxia ────────────────────────────────────────────────────────
+GALAXY_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
-
-:root {
-  --bg: #0e0e0e; --surface: #131313; --surface-low: #1c1b1b;
-  --on-surface: #e5e2e1; --on-surface-dim: #a09d9c;
-  --primary: #FFD700; --primary-text: #1a1200;
-  --secondary: #dcb8ff; --tertiary: #00e479;
-  --error: #FF3B3B; --error-dim: #ff6b6b;
-  --glass-border: rgba(255,255,255,0.08);
+/* === BASE GALÁXIA === */
+html, body, [data-testid="stApp"], [data-testid="stAppViewContainer"] {
+    background-color: #05050A !important;
+    color: #E2E8F0 !important;
 }
-
-html, body, [class*="css"] {
-  font-family: 'Inter', sans-serif !important;
-  background-color: #0e0e0e !important;
-  color: #e5e2e1 !important;
-}
-
-/* ── Sidebar ── */
 [data-testid="stSidebar"] {
-  background: #131313 !important;
-  border-right: 1px solid rgba(255,255,255,0.08) !important;
+    background: linear-gradient(180deg, #0B132B 0%, #05050A 100%) !important;
+    border-right: 1px solid #1F3A52 !important;
 }
-[data-testid="stSidebar"] * { color: #a09d9c !important; }
-[data-testid="stSidebarNav"] { display: none; }
-
-/* Garante que o botão nativo de colapso/reabrir a sidebar permaneça visível */
-button[data-testid="collapsedControl"],
-button[kind="header"],
-[data-testid="collapsedControl"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
+[data-testid="stSidebar"] * { color: #E2E8F0 !important; }
+ 
+/* === BOKEH / ESTRELAS (pseudo-elementos no body) === */
+body::before {
+    content: '';
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-image:
+        radial-gradient(circle, rgba(76,201,240,0.18) 1px, transparent 1px),
+        radial-gradient(circle, rgba(226,232,240,0.10) 1px, transparent 1px),
+        radial-gradient(circle, rgba(76,201,240,0.08) 1px, transparent 1px);
+    background-size: 120px 120px, 80px 80px, 200px 200px;
+    background-position: 10px 10px, 40px 60px, 90px 30px;
+    pointer-events: none;
+    z-index: 0;
+    animation: twinkle 8s ease-in-out infinite alternate;
 }
-
-/* Todos os botões da sidebar: estilo de nav-link neutro */
-[data-testid="stSidebar"] .stButton > button {
-  background: transparent !important;
-  color: #a09d9c !important;
-  border: none !important;
-  border-left: 3px solid transparent !important;
-  border-radius: 0 4px 4px 0 !important;
-  text-align: left !important;
-  font-family: 'Inter', sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
-  padding: 10px 14px !important;
-  box-shadow: none !important;
-  transition: color 0.15s, background 0.15s, border-color 0.15s !important;
-  width: 100% !important;
+@keyframes twinkle {
+    0%   { opacity: 0.6; }
+    50%  { opacity: 1.0; }
+    100% { opacity: 0.6; }
 }
-[data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(255,255,255,0.05) !important;
-  color: #e5e2e1 !important;
-  border-left-color: rgba(255,255,255,0.15) !important;
-  box-shadow: none !important;
+ 
+/* === CARDS / CONTAINERS === */
+[data-testid="stMetric"] {
+    background: linear-gradient(135deg, #0B132B, #1C1A27) !important;
+    border: 1px solid #1F3A52 !important;
+    border-radius: 12px !important;
+    padding: 16px !important;
 }
-
-/* Botão de logout: mais discreto */
-[data-testid="stSidebar"] .stButton > button[key="btn_logout"],
-[data-testid="stSidebar"] div:last-child .stButton > button {
-  color: #555 !important;
-  font-size: 13px !important;
+[data-testid="stMetricLabel"] { color: #4CC9F0 !important; font-size: 12px !important; }
+[data-testid="stMetricValue"] { color: #E2E8F0 !important; }
+[data-testid="stMetricDelta"] { color: #4CC9F0 !important; }
+ 
+div[data-testid="stBlock"], section[data-testid="stSidebar"] > div {
+    background: transparent !important;
 }
-
-/* ── Área principal ── */
-[data-testid="stAppViewContainer"] > .main { background: #0e0e0e !important; }
-[data-testid="block-container"] { padding: 1.5rem 2rem !important; }
-
-/* ── Cards ── */
-.cx-card {
-  background: #131313;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 16px;
+ 
+/* === INPUTS === */
+input, textarea, select,
+[data-testid="stTextInput"] input,
+[data-testid="stSelectbox"] select,
+[data-testid="stNumberInput"] input {
+    background: #0B132B !important;
+    border: 1px solid #1F3A52 !important;
+    color: #E2E8F0 !important;
+    border-radius: 8px !important;
 }
-.cx-card-yellow { border-color: rgba(255,215,0,0.4); }
-.cx-card-purple { border-color: rgba(220,184,255,0.3); }
-.cx-card-green  { border-color: rgba(0,228,121,0.35); }
-.cx-card-red    { border-color: rgba(255,59,59,0.3); }
-
-/* ── KPI ── */
-.kpi-value  { font-family: 'Space Grotesk', sans-serif; font-size: 2.4rem; font-weight: 700; line-height: 1; margin: 4px 0 8px; }
-.kpi-yellow { color: #FFD700; }
-.kpi-purple { color: #dcb8ff; }
-.kpi-green  { color: #00e479; }
-.kpi-white  { color: #e5e2e1; }
-.kpi-label  { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: #a09d9c; font-weight: 600; }
-.kpi-delta-pos { color: #00e479; font-size: 12px; font-weight: 600; }
-.kpi-delta-neg { color: #ff6b6b; font-size: 12px; font-weight: 600; }
-
-/* ── Títulos de página ── */
-.page-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 700; color: #e5e2e1; margin-bottom: 4px; }
-.page-sub   { font-size: 14px; color: #a09d9c; margin-bottom: 20px; }
-
-/* ── Badge ── */
-.badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 9999px; }
-.badge-yellow { background: rgba(255,215,0,0.15); color: #FFD700; border: 1px solid rgba(255,215,0,0.3); }
-.badge-green  { background: rgba(0,228,121,0.12); color: #00e479; border: 1px solid rgba(0,228,121,0.3); }
-.badge-red    { background: rgba(255,59,59,0.12); color: #ff6b6b; border: 1px solid rgba(255,59,59,0.3); }
-.badge-purple { background: rgba(220,184,255,0.12); color: #dcb8ff; border: 1px solid rgba(220,184,255,0.3); }
-.badge-gray   { background: rgba(255,255,255,0.08); color: #a09d9c; }
-
-/* ── CORREÇÃO 1: Botões globais APENAS na área principal (não afeta sidebar) ── */
-[data-testid="stAppViewContainer"] .stButton > button {
-  background: #FFD700 !important; color: #1a1200 !important;
-  font-family: 'Space Grotesk', sans-serif !important;
-  font-weight: 700 !important; border: none !important;
-  border-radius: 4px !important;
-  transition: box-shadow 0.2s !important;
+input:focus, textarea:focus {
+    border-color: #4CC9F0 !important;
+    box-shadow: 0 0 8px rgba(76,201,240,0.3) !important;
 }
-[data-testid="stAppViewContainer"] .stButton > button:hover {
-  box-shadow: 0 0 20px rgba(255,215,0,0.35) !important;
+ 
+/* === BOTÕES === */
+.stButton > button {
+    background: linear-gradient(135deg, #1F3A52, #0B132B) !important;
+    color: #4CC9F0 !important;
+    border: 1px solid #4CC9F0 !important;
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s !important;
 }
-
-/* Botão secundário */
-.btn-secondary > button {
-  background: transparent !important; color: #a09d9c !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
+.stButton > button:hover {
+    background: #4CC9F0 !important;
+    color: #05050A !important;
+    box-shadow: 0 0 16px rgba(76,201,240,0.5) !important;
 }
-.btn-secondary > button:hover { border-color: #a09d9c !important; color: #e5e2e1 !important; }
-
-/* ── Inputs ── */
-.stTextInput > div > div > input,
-.stTextArea > div > div > textarea,
-.stSelectbox > div > div,
-.stDateInput > div > div > input,
-.stNumberInput > div > div > input {
-  background: #1c1b1b !important;
-  border: 1px solid #4d4732 !important;
-  color: #e5e2e1 !important;
-  border-radius: 4px !important;
+ 
+/* === TABELAS === */
+[data-testid="stDataFrame"] table,
+.stDataFrame table {
+    background: #0B132B !important;
+    color: #E2E8F0 !important;
+    border: 1px solid #1F3A52 !important;
 }
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus {
-  border-color: #FFD700 !important;
-  box-shadow: 0 0 0 2px rgba(255,215,0,0.15) !important;
+[data-testid="stDataFrame"] thead tr th {
+    background: #1C1A27 !important;
+    color: #4CC9F0 !important;
+    border-bottom: 1px solid #1F3A52 !important;
 }
-
-/* Checkbox (lembrar acesso) */
-.stCheckbox > label { color: #a09d9c !important; font-size: 13px !important; }
-.stCheckbox > label > span { color: #a09d9c !important; }
-
-/* Selectbox */
-.stSelectbox > div > div { background: #1c1b1b !important; color: #e5e2e1 !important; }
-.stSelectbox > div > div > div { color: #e5e2e1 !important; }
-
-/* Slider */
-.stSlider > div > div > div { background: #FFD700 !important; }
-
-/* ── Tabs ── */
-.stTabs [data-baseweb="tab-list"] { background: #131313 !important; gap: 4px; }
-.stTabs [data-baseweb="tab"] {
-  background: #131313 !important; color: #a09d9c !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
-  border-radius: 4px !important; font-size: 13px !important;
+[data-testid="stDataFrame"] tbody tr:nth-child(even) td {
+    background: rgba(31,58,82,0.3) !important;
 }
-.stTabs [aria-selected="true"] {
-  background: #FFD700 !important; color: #1a1200 !important;
-  border-color: #FFD700 !important; font-weight: 700 !important;
+ 
+/* === TABS === */
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    color: #E2E8F0 !important;
+    border-bottom: 2px solid transparent !important;
 }
-.stTabs [data-baseweb="tab-panel"] { background: transparent !important; padding-top: 20px !important; }
-
-/* ── Métricas ── */
-[data-testid="stMetric"] { background: #131313; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px !important; }
-[data-testid="stMetricLabel"] { color: #a09d9c !important; font-size: 10px !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; }
-[data-testid="stMetricValue"] { color: #FFD700 !important; font-family: 'Space Grotesk', sans-serif !important; }
-[data-testid="stMetricDelta"] svg { display: none; }
-
-/* ── Dataframe ── */
-[data-testid="stDataFrame"] { border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 8px !important; }
-
-/* ── Divider ── */
-hr { border-color: rgba(255,255,255,0.08) !important; }
-
-/* ── Chat IA ── */
-.ia-msg-user {
-  background: rgba(255,215,0,0.07); border: 1px solid rgba(255,215,0,0.15);
-  border-radius: 8px; padding: 12px 14px; margin: 8px 0; margin-left: 40px;
-  font-size: 13px; line-height: 1.6;
+[data-testid="stTabs"] [data-baseweb="tab"][aria-selected="true"] {
+    color: #4CC9F0 !important;
+    border-bottom: 2px solid #4CC9F0 !important;
 }
-.ia-msg-assistant {
-  background: rgba(220,184,255,0.06); border: 1px solid rgba(220,184,255,0.15);
-  border-radius: 8px; padding: 12px 14px; margin: 8px 0; margin-right: 40px;
-  font-size: 13px; line-height: 1.6;
+[data-testid="stTabsContent"] {
+    background: transparent !important;
 }
-.ia-role { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; margin-bottom: 5px; }
-.ia-role-user { color: #FFD700; }
-.ia-role-bot  { color: #dcb8ff; }
-
-/* ── Score display ── */
-.score-display {
-  text-align: center; padding: 20px;
-  background: #131313; border: 1px solid rgba(255,215,0,0.3);
-  border-radius: 8px;
+ 
+/* === DIVIDER === */
+hr { border-color: #1F3A52 !important; }
+ 
+/* === SELECTBOX / MULTISELECT === */
+[data-baseweb="select"] > div {
+    background: #0B132B !important;
+    border: 1px solid #1F3A52 !important;
+    color: #E2E8F0 !important;
 }
-.score-big { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: #FFD700; }
-
-/* ── Info/success/error boxes ── */
-.cx-success { background: rgba(0,228,121,0.08); border: 1px solid rgba(0,228,121,0.25); border-radius: 4px; padding: 12px 14px; color: #00e479; }
-.cx-error   { background: rgba(255,59,59,0.08); border: 1px solid rgba(255,59,59,0.25); border-radius: 4px; padding: 12px 14px; color: #ff6b6b; }
-.cx-info    { background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.2); border-radius: 4px; padding: 12px 14px; color: #FFD700; }
-
-/* ── Ocultar elementos padrão do Streamlit ── */
-#MainMenu, footer, header { visibility: hidden; }
-.stDeployButton { display: none !important; }
+[data-baseweb="popover"] { background: #0B132B !important; border: 1px solid #1F3A52 !important; }
+[data-baseweb="menu"] { background: #0B132B !important; }
+[data-baseweb="option"]:hover { background: #1F3A52 !important; }
+ 
+/* === ALERTS / EXPANDER === */
+[data-testid="stExpander"] {
+    background: #0B132B !important;
+    border: 1px solid #1F3A52 !important;
+    border-radius: 8px !important;
+}
+.stAlert { border-radius: 8px !important; }
+ 
+/* === PROGRESS BAR === */
+[data-testid="stProgressBar"] > div > div {
+    background: linear-gradient(90deg, #1F3A52, #4CC9F0) !important;
+}
+ 
+/* === SCROLLBAR === */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #05050A; }
+::-webkit-scrollbar-thumb { background: #1F3A52; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #4CC9F0; }
+ 
+/* === HEADINGS === */
+h1 { color: #4CC9F0 !important; font-size: 28px !important; }
+h2 { color: #E2E8F0 !important; }
+h3 { color: #4CC9F0 !important; }
+ 
+/* === LOGIN CARD === */
+.login-card {
+    background: linear-gradient(135deg, #0B132B, #1C1A27);
+    border: 1px solid #1F3A52;
+    border-radius: 16px;
+    padding: 2rem;
+    max-width: 420px;
+    margin: 4rem auto;
+    box-shadow: 0 0 40px rgba(76,201,240,0.12);
+}
+ 
+/* === BADGE FAIXA === */
+.badge-meta {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+ 
+/* === SIDEBAR LOGO === */
+.sidebar-logo {
+    text-align: center;
+    padding: 1rem 0 1.5rem;
+    border-bottom: 1px solid #1F3A52;
+    margin-bottom: 1rem;
+}
 </style>
-""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
-# SESSION STATE
-# ─────────────────────────────────────────
-def init_session():
-    defaults = {
-        "logged_in": False,
-        "user": None,
-        "page": "dashboard",
-        "ia_messages": [],
-        "score_avaliacao": 8.0,
-        "remembered_user": "",
-        "remembered_pass": "",
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
-
-init_session()
-
-
-# ─────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────
-def perfil_label(p):
-    return {"admin":"Administrador","gestor":"Gestor CX","auditor":"Auditor","operador":"Operador"}.get(p, p)
-
-def badge_html(text, color="yellow"):
-    return f'<span class="badge badge-{color}">{text}</span>'
-
-def card(content_fn, color=""):
-    cls = f"cx-card cx-card-{color}" if color else "cx-card"
-    st.markdown(f'<div class="{cls}">', unsafe_allow_html=True)
-    content_fn()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-def section_title(text):
-    st.markdown(f'<div class="page-title">{text}</div>', unsafe_allow_html=True)
-
-def section_sub(text):
-    st.markdown(f'<div class="page-sub">{text}</div>', unsafe_allow_html=True)
-
-def score_color(n):
+"""
+ 
+st.markdown(GALAXY_CSS, unsafe_allow_html=True)
+ 
+# ─── Constantes ───────────────────────────────────────────────────────────────
+DATA_DIR   = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+OPS_FILE   = DATA_DIR / "operadores.json"
+EVALS_FILE = DATA_DIR / "avaliacoes.json"
+FAIXAS_FILE = DATA_DIR / "faixas.json"
+USERS_FILE = DATA_DIR / "usuarios.json"
+ 
+NIVEIS = {
+    "comandante": "Comandante 🌌",
+    "copiloto":   "Copiloto 🚀",
+    "observador": "Observador Estelar 🔭",
+    "tripulacao": "Tripulação ⭐",
+}
+ 
+MESES_LABEL = {str(i): f"Mês {i:02d}" for i in range(1, 13)}
+CICLOS = ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4", "Ciclo 5"]
+ 
+# ─── Persistência JSON ────────────────────────────────────────────────────────
+def load_json(path, default):
+    if path.exists():
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return default
+ 
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+ 
+def load_operadores():
+    return load_json(OPS_FILE, [])
+ 
+def save_operadores(data):
+    save_json(OPS_FILE, data)
+ 
+def load_avaliacoes():
+    return load_json(EVALS_FILE, [])
+ 
+def save_avaliacoes(data):
+    save_json(EVALS_FILE, data)
+ 
+def load_faixas():
+    default = [
+        {"id": "f1", "desc": "Abaixo da meta",    "min": 0,  "max": 79.9, "bonus": 0},
+        {"id": "f2", "desc": "Faixa Bronze",       "min": 80, "max": 84.9, "bonus": 75},
+        {"id": "f3", "desc": "Faixa Prata",        "min": 85, "max": 89.9, "bonus": 150},
+        {"id": "f4", "desc": "Faixa Ouro",         "min": 90, "max": 94.9, "bonus": 250},
+        {"id": "f5", "desc": "Faixa Diamante",     "min": 95, "max": 100,  "bonus": 400},
+    ]
+    return load_json(FAIXAS_FILE, default)
+ 
+def save_faixas(data):
+    save_json(FAIXAS_FILE, data)
+ 
+def load_usuarios():
+    default = [
+        {"login": "comandante", "senha": "leal2024", "nivel": "comandante", "nome": "Gerente de Qualidade", "op_id": None},
+        {"login": "copiloto",   "senha": "leal2024", "nivel": "copiloto",   "nome": "Coordenadora",         "op_id": None},
+        {"login": "observador", "senha": "leal2024", "nivel": "observador", "nome": "Gerente",               "op_id": None},
+    ]
+    return load_json(USERS_FILE, default)
+ 
+def save_usuarios(data):
+    save_json(USERS_FILE, data)
+ 
+# ─── Helpers de negócio ───────────────────────────────────────────────────────
+def avg_of(values):
+    vals = [float(v) for v in values if v not in (None, "", 0) and str(v).strip() != ""]
+    return round(sum(vals) / len(vals), 2) if vals else None
+ 
+def eval_int(e):
+    return avg_of([e.get("cord"), e.get("res"), e.get("agi"), e.get("script")])
+ 
+def eval_final(e, pesos):
+    mp = e.get("mp")
+    iv = eval_int(e)
+    if mp in (None, "") and iv is None:
+        return None
+    pm = pesos.get("mp", 50) / 100
+    pi = pesos.get("int", 50) / 100
+    mp_f = float(mp) if mp not in (None, "") else None
+    if mp_f is not None and iv is not None:
+        return round((mp_f / 10 * pm + iv / 10 * pi) * 100, 2)
+    if mp_f is not None:
+        return round(mp_f / 10 * 100, 2)
+    return round(iv / 10 * 100, 2)
+ 
+def get_faixa(nota, faixas):
+    if nota is None:
+        return None
+    for f in sorted(faixas, key=lambda x: x["min"]):
+        if f["min"] <= nota <= f["max"]:
+            return f
+    return None
+ 
+def tenure(adm_str):
+    if not adm_str:
+        return "—"
     try:
-        v = float(n)
-        if v >= 80: return "green"
-        if v >= 60: return "yellow"
-        return "red"
-    except: return "gray"
-
-def kpi_card(label, value, delta=None, color="yellow"):
-    delta_html = ""
-    if delta:
-        cls = "kpi-delta-pos" if delta.startswith("▲") or delta.startswith("+") else "kpi-delta-neg"
-        delta_html = f'<div class="{cls}">{delta}</div>'
-    st.markdown(f"""
-    <div class="cx-card cx-card-{color}">
-      <div class="kpi-label">{label}</div>
-      <div class="kpi-value kpi-{color}">{value}</div>
-      {delta_html}
-    </div>""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
-# PLOTLY THEME
-# ─────────────────────────────────────────
-PLOTLY_LAYOUT = dict(
-    paper_bgcolor="rgba(0,0,0,0)",
-    plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#a09d9c", family="Inter"),
-    margin=dict(l=0, r=0, t=40, b=0),
-    xaxis=dict(gridcolor="rgba(0,0,0,0)", color="#555", tickfont=dict(size=11, color="#666")),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.05)", color="#555", tickfont=dict(size=11, color="#555"), zeroline=False),
-)
-
-def line_chart(labels, datasets):
-    """datasets = list of {name, data, color, fill}"""
-    fig = go.Figure()
-    for d in datasets:
-        fill_color = d.get("fill", "rgba(255,255,255,0.04)")
-        fig.add_trace(go.Scatter(
-            x=labels,
-            y=d["data"],
-            name=d["name"],
-            line=dict(color=d["color"], width=3, shape="spline", smoothing=1.3),
-            mode="lines",
-            fill="tozeroy",
-            fillcolor=fill_color,
-        ))
-    layout = dict(**PLOTLY_LAYOUT)
-    layout["showlegend"] = True
-    layout["legend"] = dict(
-        bgcolor="rgba(0,0,0,0)",
-        font=dict(color="#a09d9c", size=11),
-        orientation="h",
-        yanchor="bottom", y=1.02,
-        xanchor="right", x=1,
-    )
-    fig.update_layout(**layout)
-    return fig
-
-def bar_chart(labels, values, colors=None):
-    if not colors:
-        colors = ["rgba(255,255,255,0.1)"] * len(values)
-    fig = go.Figure(go.Bar(x=labels, y=values, marker_color=colors, marker_line_width=0))
-    layout = dict(**PLOTLY_LAYOUT)
-    layout["showlegend"] = False
-    fig.update_layout(**layout)
-    fig.update_traces(marker_cornerradius=3)
-    return fig
-
-def donut_chart(values, colors, labels):
-    fig = go.Figure(go.Pie(
-        values=values, labels=labels, marker_colors=colors,
-        hole=0.72, textinfo="none",
-    ))
-    layout = dict(**PLOTLY_LAYOUT)
-    layout["showlegend"] = False
-    fig.update_layout(**layout)
-    return fig
-
-
-# ─────────────────────────────────────────
-# LOGIN
-# ─────────────────────────────────────────
-def page_login():
-    col_left, col_right = st.columns([1, 1])
-    with col_left:
-        st.markdown("""
-        <div style="padding: 20px 0">
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;color:#FFD700;margin-bottom:4px">CX Command</div>
-          <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#a09d9c;margin-bottom:48px">Quality Management</div>
-          <h1 style="font-family:'Space Grotesk',sans-serif;font-size:2.2rem;font-weight:700;color:#e5e2e1;line-height:1.15;margin-bottom:12px">Bem-vindo ao<br>centro de controle.</h1>
-          <p style="color:#a09d9c;font-size:15px;margin-bottom:32px">Insira suas credenciais para gerenciar a qualidade operacional.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        default_user = st.session_state.get("remembered_user", "")
-        default_pass = st.session_state.get("remembered_pass", "")
-
-        usuario = st.text_input("Usuário", value=default_user, placeholder="ex: admin", key="login_user")
-        senha   = st.text_input("Senha",   value=default_pass, placeholder="••••••••", type="password", key="login_pass")
-        lembrar = st.checkbox("Lembrar meu acesso", value=bool(default_user), key="login_lembrar")
-
-        if st.button("ENTRAR", use_container_width=True):
-            try:
-                df = db.load_usuarios()
-                if df.empty:
-                    db.seed_admin()
-                    df = db.load_usuarios()
-                match = df[
-                    (df["usuario"].str.lower() == usuario.strip().lower()) &
-                    (df["senha"] == senha) &
-                    (df["ativo"].astype(str).str.lower() != "false")
-                ]
-                if not match.empty:
-                    user = match.iloc[0].to_dict()
-                    st.session_state.logged_in = True
-                    st.session_state.user = user
-                    if lembrar:
-                        st.session_state["remembered_user"] = usuario.strip().lower()
-                        st.session_state["remembered_pass"] = senha
-                    else:
-                        st.session_state["remembered_user"] = ""
-                        st.session_state["remembered_pass"] = ""
-                    st.rerun()
-                else:
-                    st.markdown('<div class="cx-error">✕ Usuário ou senha incorretos.</div>', unsafe_allow_html=True)
-            except Exception as e:
-                st.markdown(f'<div class="cx-error">Erro ao conectar ao banco de dados: {e}</div>', unsafe_allow_html=True)
-
-        st.markdown('<div style="font-size:12px;color:#444;margin-top:24px">Acesso restrito para auditores e gestores CX.<br>Versão 4.2.0 · Usuário padrão: <strong style="color:#666">admin</strong> / senha: <strong style="color:#666">admin123</strong></div>', unsafe_allow_html=True)
-
-    with col_right:
-        st.markdown("""
-        <div class="cx-card" style="margin-top:20px">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px">
-            <div>
-              <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:600">Operational Health</div>
-              <div style="font-size:13px;color:#a09d9c;margin-top:3px">Real-time performance diagnostics</div>
-            </div>
-            <span style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,228,121,0.1);color:#00e479;font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;padding:4px 10px;border-radius:9999px;border:1px solid rgba(0,228,121,0.3)">● Sistema Nominal</span>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div style="background:#201f1f;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px">
-              <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#a09d9c;margin-bottom:6px">Média Global</div>
-              <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#FFD700">94.2 <span style="font-size:12px;color:#00e479">+1.4%</span></div>
-            </div>
-            <div style="background:#201f1f;border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:16px">
-              <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:#a09d9c;margin-bottom:6px">Operadores Ativos</div>
-              <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:#e5e2e1">1,248</div>
-            </div>
-          </div>
-        </div>
-        <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-style:italic;color:#a09d9c;text-align:center;margin-top:20px">
-          Transforme cada feedback em uma oportunidade de ouro.
-        </div>
-        """, unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
+        adm = datetime.strptime(adm_str, "%Y-%m-%d").date()
+        delta = date.today() - adm
+        months = int(delta.days / 30.44)
+        if months < 0:
+            months = 0
+        if months < 12:
+            return f"{months}m"
+        return f"{months // 12}a {months % 12}m"
+    except Exception:
+        return "—"
+ 
+def score_color(v, is_final=False):
+    if v is None:
+        return "#888"
+    if is_final:
+        return "#4CC9F0" if v >= 90 else "#FAC775" if v >= 80 else "#F09595"
+    return "#4CC9F0" if v >= 8 else "#FAC775" if v >= 6 else "#F09595"
+ 
+def badge_faixa(fx):
+    if not fx:
+        return "<span style='color:#888'>—</span>"
+    bonus = fx["bonus"]
+    if bonus == 0:
+        cor = "#F09595"; bg = "rgba(240,149,149,0.15)"
+    elif bonus < 150:
+        cor = "#FAC775"; bg = "rgba(250,199,117,0.15)"
+    elif bonus < 300:
+        cor = "#4CC9F0"; bg = "rgba(76,201,240,0.15)"
+    else:
+        cor = "#9FE1CB"; bg = "rgba(159,225,203,0.15)"
+    return f"<span class='badge-meta' style='color:{cor};background:{bg};border:1px solid {cor}'>{fx['desc']} · R$ {fx['bonus']:.2f}</span>"
+ 
+def pesos_default():
+    return {"mp": 50, "int": 50}
+ 
+# ─── Sessão ───────────────────────────────────────────────────────────────────
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user = None
+ 
+if "pesos" not in st.session_state:
+    st.session_state.pesos = pesos_default()
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# TELA DE LOGIN
+# ═══════════════════════════════════════════════════════════════════════════════
+def tela_login():
+    st.markdown("""
+    <div style='text-align:center; padding-top: 2rem;'>
+        <div style='font-size:52px; margin-bottom:8px;'>🌌</div>
+        <h1 style='font-size:32px; color:#4CC9F0; margin-bottom:4px;'>LEAL — CX</h1>
+        <p style='color:#1F3A52; font-size:14px; letter-spacing:0.1em;'>SISTEMA DE GESTÃO DE QUALIDADE</p>
+        <p style='color:#E2E8F0; font-size:13px; margin-top:4px;'>Operação Mercado Pago</p>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    with col2:
+        st.markdown("<div style='background:linear-gradient(135deg,#0B132B,#1C1A27);border:1px solid #1F3A52;border-radius:16px;padding:2rem;box-shadow:0 0 40px rgba(76,201,240,0.12);'>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#4CC9F0;font-size:13px;letter-spacing:0.08em;margin-bottom:1rem;'>ACESSO À MISSÃO</p>", unsafe_allow_html=True)
+        login_input = st.text_input("Login", placeholder="Seu identificador", key="login_field")
+        senha_input = st.text_input("Senha", type="password", placeholder="••••••••", key="senha_field")
+        entrar = st.button("🚀 Iniciar missão", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+ 
+        if entrar:
+            usuarios = load_usuarios()
+            user = next((u for u in usuarios if u["login"] == login_input and u["senha"] == senha_input), None)
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.user = user
+                st.rerun()
+            else:
+                st.error("Login ou senha incorretos. Tente novamente.")
+ 
+    st.markdown("""
+    <div style='text-align:center; margin-top:3rem; color:#1F3A52; font-size:12px;'>
+        Leal — CX · Sistema de Qualidade · Operação Mercado Pago
+    </div>
+    """, unsafe_allow_html=True)
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
-# ─────────────────────────────────────────
-def render_sidebar():
-    user = st.session_state.user or {}
-    nome = user.get("nome","—")
-    initials = "".join(w[0] for w in nome.split()[:2]).upper()
-
+# ═══════════════════════════════════════════════════════════════════════════════
+def render_sidebar(user):
     with st.sidebar:
         st.markdown(f"""
-        <div style="padding:0 0 20px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:20px">
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#FFD700">CX Command</div>
-          <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#a09d9c">Quality Management</div>
+        <div class='sidebar-logo'>
+            <div style='font-size:36px;'>🌌</div>
+            <div style='font-size:18px; font-weight:700; color:#4CC9F0;'>LEAL — CX</div>
+            <div style='font-size:11px; color:#1F3A52; letter-spacing:0.08em;'>GESTÃO DE QUALIDADE</div>
+        </div>
+        <div style='background:rgba(76,201,240,0.08); border:1px solid #1F3A52; border-radius:10px; padding:12px; margin-bottom:1rem;'>
+            <div style='font-size:12px; color:#4CC9F0;'>CONECTADO COMO</div>
+            <div style='font-size:14px; font-weight:600; color:#E2E8F0; margin-top:2px;'>{user["nome"]}</div>
+            <div style='font-size:12px; color:#1F3A52; margin-top:2px;'>{NIVEIS.get(user["nivel"], user["nivel"])}</div>
         </div>
         """, unsafe_allow_html=True)
-
-        pages = [
-            ("⊞", "Dashboard",         "dashboard"),
-            ("👥", "Operadores",         "operadores"),
-            ("☑", "Avaliações",         "avaliacoes"),
-            ("⏱", "Banco de Erros",     "bancoerros"),
-            ("✉", "Entregar Feedback",  "feedback_op"),
-            ("✦", "IA de Qualidade",    "ia"),
-            ("📋", "Base QA",            "base_qa"),
-        ]
-        if user.get("perfil") == "admin":
-            pages.append(("⚙", "Configurações", "config"))
-
-        current = st.session_state.page
-
-        # CORREÇÃO 2: destaque da página ativa via wrapper <div> inline,
-        # sem injetar <style> por loop (evita conflitos de especificidade a cada rerun)
-        for icon, label, pid in pages:
-            is_active = (current == pid)
-            if is_active:
-                st.markdown(
-                    '<div style="border-left:3px solid #FFD700;background:rgba(255,215,0,0.06);'
-                    'border-radius:0 4px 4px 0;margin-bottom:2px">',
-                    unsafe_allow_html=True
-                )
-            if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
-                st.session_state.page = pid
-                st.rerun()
-            if is_active:
-                st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown("<div style='margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)'></div>", unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 4px">
-          <div style="width:36px;height:36px;border-radius:50%;background:#2a2a2a;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:#FFD700;flex-shrink:0">{initials}</div>
-          <div><div style="font-size:13px;font-weight:600;color:#e5e2e1">{nome.split()[0]}</div><div style="font-size:11px;color:#a09d9c">{perfil_label(user.get("perfil",""))}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if st.button("⇥  Sair", use_container_width=True, key="btn_logout"):
+ 
+        nivel = user["nivel"]
+ 
+        if nivel in ("comandante", "copiloto", "observador"):
+            st.markdown("**Navegação**")
+            pages = [
+                ("🏠", "Dashboard"),
+                ("👥", "Operadores"),
+                ("📋", "Avaliações"),
+                ("🏆", "Metas"),
+                ("📈", "Evolução"),
+            ]
+            if nivel == "comandante":
+                pages += [("⚙️", "Configurações")]
+ 
+            if "page" not in st.session_state:
+                st.session_state.page = "Dashboard"
+ 
+            for icon, page in pages:
+                active = "🔵 " if st.session_state.page == page else ""
+                if st.button(f"{icon} {active}{page}", key=f"nav_{page}", use_container_width=True):
+                    st.session_state.page = page
+                    st.rerun()
+ 
+        st.markdown("---")
+        if st.button("🚪 Sair", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.user = None
-            st.session_state.page = "dashboard"
             st.rerun()
-
-
-# ─────────────────────────────────────────
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
 # PÁGINA: DASHBOARD
-# ─────────────────────────────────────────
-def page_dashboard():
-    section_title("Dashboard")
-    section_sub("Visão geral da qualidade operacional em tempo real.")
-
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: kpi_card("Nota Média Geral", "95.0", "▲ 4.2%", "yellow")
-    with c2: kpi_card("Nota Mercado Pago", "92.1", "▲ 1.8%", "purple")
-    with c3: kpi_card("Nota Avaliador", "96.5", "▼ 0.5%", "green")
-    with c4: kpi_card("Operadores Ativos", "142", "Steady", "white")
-
-    st.markdown("---")
-
-    col_chart, col_trends = st.columns([2, 1])
-    with col_chart:
-        st.markdown('<div class="cx-card">', unsafe_allow_html=True)
-        st.markdown('<div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;margin-bottom:14px">Evolução Mensal Quality</div>', unsafe_allow_html=True)
-        meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-        fig = line_chart(meses, [
-            {"name": "Média Geral",       "data": [70,72,68,75,80,78,82,85,88,90,93,95],      "color": "#FFD700",  "fill": "rgba(255,215,0,0.08)"},
-            {"name": "Mercado Pago",      "data": [65,68,65,70,72,70,74,78,80,83,88,92],      "color": "#dcb8ff",  "fill": "rgba(220,184,255,0.06)"},
-            {"name": "Avaliação Interna", "data": [72,75,72,78,82,80,84,88,90,92,95,96.5],    "color": "#00e479",  "fill": "rgba(0,228,121,0.05)"},
-        ])
-        fig.update_layout(height=260, yaxis_range=[55, 100], margin=dict(l=0, r=0, t=40, b=0))
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_trends:
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:14px">🧭 Mapa de Tendências</div>', unsafe_allow_html=True)
-        st.markdown("""
-        <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-left:3px solid #FFD700;border-radius:0 8px 8px 0;padding:14px;margin-bottom:10px">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#FFD700;font-weight:700;margin-bottom:6px">⚠ Informação Crítica</div>
-          <div style="font-size:12px;color:#a09d9c;line-height:1.5">Erros de informação incorreta aumentaram 18% neste ciclo.</div>
-        </div>
-        <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-left:3px solid #00e479;border-radius:0 8px 8px 0;padding:14px">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#00e479;font-weight:700;margin-bottom:6px">▲ Tendência Positiva</div>
-          <div style="font-size:12px;color:#a09d9c;line-height:1.5">Resolução na 1ª chamada subiu 6% nos últimos 15 dias.</div>
-        </div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("---")
-
-    col_ops, col_status = st.columns([2, 1])
-    with col_ops:
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:14px">Operadores em Destaque</div>', unsafe_allow_html=True)
-        try:
-            df_ops = db.load_operadores()
-            if not df_ops.empty:
-                df_show = df_ops[df_ops["ativo"].astype(str).str.lower() != "false"].head(5)
-                for _, row in df_show.iterrows():
-                    nota = float(row.get("nota_geral", 0) or 0)
-                    cor = "#00e479" if nota >= 90 else "#FFD700" if nota >= 70 else "#ff6b6b"
-                    st.markdown(f"""
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-                      <div style="display:flex;align-items:center;gap:10px">
-                        <div style="width:32px;height:32px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:11px;font-weight:700;color:#FFD700">{"".join(w[0] for w in str(row.get("nome","?")).split()[:2]).upper()}</div>
-                        <div><div style="font-size:14px;font-weight:500">{row.get("nome","—")}</div><div style="font-size:11px;color:#a09d9c">{row.get("matricula","—")}</div></div>
-                      </div>
-                      <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:{cor}">{nota:.1f}</div>
-                    </div>""", unsafe_allow_html=True)
-            else:
-                st.markdown('<div style="text-align:center;padding:24px;color:#a09d9c;font-size:13px">Nenhum operador cadastrado ainda.</div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.markdown(f'<div style="color:#ff6b6b;font-size:12px">Erro ao carregar: {e}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_status:
-        st.markdown("""
-        <div class="cx-card">
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin-bottom:14px">Status do Sistema</div>
-          <div style="font-size:12px;color:#00e479;margin-bottom:14px">● Sincronização em tempo real ativa.</div>
-          <div style="margin-bottom:10px">
-            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span>Processamento de Voz (AI)</span><span style="color:#00e479;font-weight:600">99.9%</span></div>
-            <div style="height:4px;background:#2a2a2a;border-radius:2px"><div style="height:100%;width:99.9%;background:#00e479;border-radius:2px"></div></div>
-          </div>
-          <div style="margin-bottom:14px">
-            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span>Banco de Dados</span><span style="color:#00e479;font-weight:600">Operacional</span></div>
-            <div style="height:4px;background:#2a2a2a;border-radius:2px"><div style="height:100%;width:95%;background:#00e479;border-radius:2px"></div></div>
-          </div>
-          <div style="background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.2);border-radius:4px;padding:12px 14px;display:flex;align-items:center;gap:8px">
-            <div style="width:8px;height:8px;border-radius:50%;background:#FFD700"></div>
-            <div style="font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#FFD700">Google Sheets Conectado</div>
-          </div>
-        </div>""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
-# PÁGINA: OPERADORES
-# ─────────────────────────────────────────
-def page_operadores():
-    section_title("Operadores")
-    section_sub("Gestão de desempenho individual e ranking de qualidade.")
-
-    tab_lista, tab_novo = st.tabs(["📋  Lista de Operadores", "➕  Novo Operador"])
-
-    with tab_lista:
-        try:
-            df = db.load_operadores()
-        except Exception as e:
-            st.error(f"Erro ao carregar operadores: {e}")
-            df = pd.DataFrame()
-
-        if df.empty:
-            st.markdown('<div class="cx-info" style="text-align:center;padding:40px">Nenhum operador cadastrado ainda. Use a aba "Novo Operador" para adicionar.</div>', unsafe_allow_html=True)
-        else:
-            col_f1, col_f2 = st.columns([2, 1])
-            with col_f1:
-                busca = st.text_input("🔍 Buscar operador", placeholder="Nome ou matrícula...", label_visibility="collapsed")
-            with col_f2:
-                filtro_tier = st.selectbox("Filtrar por Tier", ["Todos","Sênior Tier 3","Pleno Tier 2","Júnior Tier 1"], label_visibility="collapsed")
-
-            df_show = df.copy()
-            if busca:
-                df_show = df_show[df_show["nome"].str.contains(busca, case=False, na=False) |
-                                  df_show["matricula"].str.contains(busca, case=False, na=False)]
-            if filtro_tier != "Todos":
-                df_show = df_show[df_show["tier"] == filtro_tier]
-
-            cols = st.columns(4)
-            for i, (_, row) in enumerate(df_show.iterrows()):
-                with cols[i % 4]:
-                    nota = float(row.get("nota_geral", 0) or 0)
-                    cor = "#00e479" if nota >= 90 else "#FFD700" if nota >= 70 else "#ff6b6b"
-                    st.markdown(f"""
-                    <div class="cx-card" style="border-color:rgba(255,215,0,0.15)">
-                      <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin-bottom:4px">{row.get("nome","—")}</div>
-                      <div style="font-size:11px;color:#a09d9c;margin-bottom:12px">{row.get("matricula","—")} · {row.get("tier","—")}</div>
-                      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#a09d9c">Nota Geral</span><span style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:{cor}">{nota:.1f}%</span></div>
-                      <div style="height:2px;background:#2a2a2a;border-radius:1px;margin-bottom:8px"><div style="height:100%;width:{min(nota,100):.0f}%;background:{cor};border-radius:1px"></div></div>
-                      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#a09d9c">MP</span><span style="font-size:13px;font-weight:600;color:#e5e2e1">{row.get("nota_mp","—")}%</span></div>
-                      <div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:#a09d9c">Interna</span><span style="font-size:13px;font-weight:600;color:#dcb8ff">{row.get("nota_interna","—")}%</span></div>
-                    </div>""", unsafe_allow_html=True)
-                    if st.button("✕ Remover", key=f"del_op_{row.get('id','')}", use_container_width=True):
-                        try:
-                            db.delete_operador(row.get("id"))
-                            st.success("Operador removido.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(str(e))
-
-    with tab_novo:
-        st.markdown('<div class="cx-card">', unsafe_allow_html=True)
-        st.markdown('<div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:20px">Cadastrar Novo Operador</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            nome_op = st.text_input("Nome Completo *", key="op_nome")
-            tier_op = st.selectbox("Tier", ["Júnior Tier 1","Pleno Tier 2","Sênior Tier 3"], key="op_tier")
-        with c2:
-            mat_op = st.text_input("Matrícula *", key="op_mat")
-            canal_op = st.selectbox("Canal Principal", ["Inbound","Outbound","Chat","E-mail"], key="op_canal")
-        with c3:
-            nota_g   = st.number_input("Nota Geral (%)",   0.0, 100.0, 0.0, key="op_ng")
-            nota_mp  = st.number_input("Nota MP (%)",      0.0, 100.0, 0.0, key="op_mp")
-            nota_int = st.number_input("Nota Interna (%)", 0.0, 100.0, 0.0, key="op_int")
-
-        if st.button("Salvar Operador", use_container_width=True, key="btn_salvar_op"):
-            if not nome_op or not mat_op:
-                st.markdown('<div class="cx-error">Nome e matrícula são obrigatórios.</div>', unsafe_allow_html=True)
-            else:
-                try:
-                    db.save_operador({
-                        "nome": nome_op, "matricula": mat_op, "tier": tier_op,
-                        "canal": canal_op, "nota_geral": nota_g,
-                        "nota_mp": nota_mp, "nota_interna": nota_int, "ativo": "true"
-                    })
-                    st.markdown('<div class="cx-success">✓ Operador cadastrado e salvo no Google Sheets!</div>', unsafe_allow_html=True)
-                    st.rerun()
-                except Exception as e:
-                    st.error(str(e))
-        st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
-# PÁGINA: AVALIAÇÕES
-# ─────────────────────────────────────────
-def page_avaliacoes():
-    section_title("Registro de Qualidade")
-    section_sub("Preencha os critérios técnicos para validação da operação.")
-
-    tab_nova, tab_historico = st.tabs(["📝  Nova Avaliação", "📊  Histórico"])
-
-    with tab_nova:
-        col_form, col_score = st.columns([2, 1])
-
-        with col_form:
-            st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">⚙ Parâmetros de Operação</div>', unsafe_allow_html=True)
-            c1, c2, c3 = st.columns(3)
-            with c1:
-                try:
-                    df_ops = db.load_operadores()
-                    op_lista = df_ops["nome"].tolist() if not df_ops.empty else []
-                except: op_lista = []
-                operador_sel = st.selectbox("Operador *", ["Selecionar..."] + op_lista, key="av_op")
-            with c2:
-                data_chamada = st.date_input("Data da Chamada", key="av_data")
-            with c3:
-                tipo_av = st.selectbox("Tipo", ["Interna","Mercado Pago","Avaliador Externo"], key="av_tipo")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">☑ Critérios de Qualidade</div>', unsafe_allow_html=True)
-            criterios = {
-                "saudacao":     ("Saudação Inicial e Identificação", 10),
-                "empatia":      ("Escuta Ativa e Empatia", 25),
-                "resolucao":    ("Resolução Técnica", 40),
-                "encerramento": ("Encerramento e Próximos Passos", 25),
-            }
-            scores = {}
-            for key, (label, peso) in criterios.items():
-                c_l, c_s = st.columns([3, 1])
-                with c_l:
-                    st.markdown(f'<div style="font-size:14px;font-weight:500;margin-bottom:4px">{label} <span style="font-size:11px;color:#FFD700;font-weight:600">(Peso: {peso}%)</span></div>', unsafe_allow_html=True)
-                with c_s:
-                    scores[key] = st.number_input("", 0.0, 10.0, 8.0, 0.1, key=f"av_{key}", label_visibility="collapsed")
-                pct = scores[key] / 10
-                st.markdown(f'<div style="height:2px;background:#2a2a2a;border-radius:1px;margin-bottom:12px"><div style="height:100%;width:{pct*100:.0f}%;background:#FFD700;border-radius:1px"></div></div>', unsafe_allow_html=True)
-
-            nota_calc = sum(scores[k] * criterios[k][1] / 100 for k in scores) * 10
-            st.session_state.score_avaliacao = nota_calc / 10
-            st.markdown('</div>', unsafe_allow_html=True)
-
-            st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:12px">☰ Parecer do Analista</div>', unsafe_allow_html=True)
-            parecer = st.text_area("Observação qualitativa", placeholder="Descreva sua observação sobre o atendimento...", height=120, key="av_parecer", label_visibility="collapsed")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with col_score:
-            nota_final = st.session_state.score_avaliacao
-            cor_nota = "#00e479" if nota_final >= 8 else "#FFD700" if nota_final >= 6 else "#ff6b6b"
-            st.markdown(f"""
-            <div class="score-display" style="border-color:rgba(255,215,0,0.3);position:sticky;top:80px">
-              <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:#a09d9c;margin-bottom:16px">Nota Final Calculada</div>
-              <div class="score-big" style="color:{cor_nota}">{nota_final:.1f}</div>
-              <div style="font-size:14px;color:#a09d9c;margin-bottom:16px">/ 10.0</div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
-                <div style="background:#1c1b1b;border-radius:4px;padding:10px;text-align:center">
-                  <div style="font-size:10px;color:#a09d9c;text-transform:uppercase;letter-spacing:0.08em">Soft Skills</div>
-                  <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;color:#00e479">{(scores.get("saudacao",0)+scores.get("empatia",0))/2:.1f}</div>
-                </div>
-                <div style="background:#1c1b1b;border-radius:4px;padding:10px;text-align:center">
-                  <div style="font-size:10px;color:#a09d9c;text-transform:uppercase;letter-spacing:0.08em">Técnico</div>
-                  <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;color:#dcb8ff">{(scores.get("resolucao",0)+scores.get("encerramento",0))/2:.1f}</div>
-                </div>
-              </div>
-            </div>""", unsafe_allow_html=True)
-
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("💾 Salvar Avaliação", use_container_width=True, key="btn_salvar_av"):
-                if operador_sel == "Selecionar...":
-                    st.markdown('<div class="cx-error">Selecione um operador.</div>', unsafe_allow_html=True)
-                else:
-                    try:
-                        user = st.session_state.user or {}
-                        db.save_avaliacao({
-                            "operador": operador_sel,
-                            "data_chamada": str(data_chamada),
-                            "tipo": tipo_av,
-                            "nota_final": round(nota_final, 2),
-                            "soft_skills": round((scores.get("saudacao",0)+scores.get("empatia",0))/2, 1),
-                            "tecnico": round((scores.get("resolucao",0)+scores.get("encerramento",0))/2, 1),
-                            "saudacao": scores.get("saudacao",0),
-                            "empatia": scores.get("empatia",0),
-                            "resolucao": scores.get("resolucao",0),
-                            "encerramento": scores.get("encerramento",0),
-                            "parecer": parecer,
-                            "auditor": user.get("nome","Sistema"),
-                        })
-                        st.markdown('<div class="cx-success">✓ Avaliação salva no Google Sheets!</div>', unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(str(e))
-
-            if st.button("📄 Salvar Rascunho", use_container_width=True, key="btn_rascunho_av"):
-                st.markdown('<div class="cx-info">Rascunho salvo localmente.</div>', unsafe_allow_html=True)
-
-    with tab_historico:
-        try:
-            df_av = db.load_avaliacoes()
-            if df_av.empty:
-                st.markdown('<div class="cx-info" style="text-align:center;padding:40px">Nenhuma avaliação registrada ainda.</div>', unsafe_allow_html=True)
-            else:
-                c1, c2 = st.columns(2)
-                with c1:
-                    busca_av = st.text_input("🔍 Buscar operador", key="hist_busca", label_visibility="collapsed", placeholder="Buscar operador...")
-                with c2:
-                    filtro_tipo = st.selectbox("Tipo", ["Todos","Interna","Mercado Pago","Avaliador Externo"], key="hist_tipo", label_visibility="collapsed")
-
-                df_show = df_av.copy()
-                if busca_av:
-                    df_show = df_show[df_show["operador"].str.contains(busca_av, case=False, na=False)]
-                if filtro_tipo != "Todos":
-                    df_show = df_show[df_show["tipo"] == filtro_tipo]
-
-                df_show["nota_final"] = pd.to_numeric(df_show["nota_final"], errors="coerce")
-                st.markdown(f'<div style="font-size:13px;color:#a09d9c;margin-bottom:12px">{len(df_show)} registro(s) encontrado(s)</div>', unsafe_allow_html=True)
-
-                for _, row in df_show.sort_values("criado_em", ascending=False).head(20).iterrows():
-                    nota = row.get("nota_final", 0)
-                    cor = "#00e479" if float(nota or 0) >= 8 else "#FFD700" if float(nota or 0) >= 6 else "#ff6b6b"
-                    st.markdown(f"""
-                    <div class="cx-card" style="margin-bottom:10px">
-                      <div style="display:flex;align-items:center;justify-content:space-between">
-                        <div>
-                          <div style="font-size:15px;font-weight:600">{row.get("operador","—")}</div>
-                          <div style="font-size:11px;color:#a09d9c;margin-top:2px">{row.get("data_chamada","—")} · {row.get("tipo","—")} · Auditor: {row.get("auditor","—")}</div>
-                        </div>
-                        <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:700;color:{cor}">{nota}/10</div>
-                      </div>
-                      {f'<div style="font-size:13px;color:#a09d9c;margin-top:10px;font-style:italic">{row.get("parecer","")[:120]}...</div>' if row.get("parecer") else ""}
-                    </div>""", unsafe_allow_html=True)
-        except Exception as e:
-            st.error(f"Erro ao carregar histórico: {e}")
-
-
-# ─────────────────────────────────────────
-# PÁGINA: BANCO DE ERROS
-# ─────────────────────────────────────────
-def page_bancoerros():
-    section_title("Banco de Erros")
-    section_sub("Monitoramento crítico de falhas processuais e comportamentais.")
-
-    tab_log, tab_novo, tab_stats = st.tabs(["📋  Log de Erros", "➕  Registrar Erro", "📊  Estatísticas"])
-
-    with tab_log:
-        try:
-            df_erros = db.load_erros()
-        except Exception as e:
-            st.error(str(e)); df_erros = pd.DataFrame()
-
-        cats = [
-            ("PROC-01","Procedimento","yellow","4.2/5.0","↘ −8%","pos"),
-            ("COMM-02","Comunicação","purple","2.8/5.0","↗ +15%","neg"),
-            ("SYS-03","Sistema","red","4.9/5.0","↗ +22%","neg"),
-            ("FIN-04","Financeiro","green","5.0/5.0","— Estável","stable"),
-            ("CSR-05","Atendimento","gray","3.1/5.0","↘ −12%","pos"),
-        ]
-        cols = st.columns(5)
-        for i, (cid, ctitle, ccor, imp, trend, tcor) in enumerate(cats):
-            with cols[i]:
-                border_colors = {"yellow":"#FFD700","purple":"#dcb8ff","red":"#FF3B3B","green":"#00e479","gray":"#a09d9c"}
-                trend_colors  = {"pos":"#00e479","neg":"#ff6b6b","stable":"#a09d9c"}
-                st.markdown(f"""
-                <div class="cx-card" style="border-top:2px solid {border_colors.get(ccor,'#444')}">
-                  <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#a09d9c;margin-bottom:6px">{cid}</div>
-                  <div style="font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;margin-bottom:8px">{ctitle}</div>
-                  <div style="font-size:12px;color:#a09d9c;margin-bottom:10px">Impacto: <strong style="color:#e5e2e1">{imp}</strong></div>
-                  <div style="font-size:12px;font-weight:600;color:{trend_colors.get(tcor,'#a09d9c')}">{trend}</div>
-                </div>""", unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        if df_erros.empty:
-            st.markdown('<div class="cx-info" style="text-align:center;padding:32px">Nenhum erro registrado. Use a aba "Registrar Erro".</div>', unsafe_allow_html=True)
-        else:
-            st.dataframe(
-                df_erros[["horario","categoria","descricao","operador","severidade","status"]].rename(columns={
-                    "horario":"Horário","categoria":"Categoria","descricao":"Descrição",
-                    "operador":"Operador","severidade":"Severidade","status":"Status"
-                }),
-                use_container_width=True, hide_index=True
-            )
-
-    with tab_novo:
-        st.markdown('<div class="cx-card">', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            cat_err = st.selectbox("Categoria", ["PROC-01 - Procedimento","COMM-02 - Comunicação","SYS-03 - Sistema","FIN-04 - Financeiro","CSR-05 - Atendimento"], key="err_cat")
-            sev_err = st.selectbox("Severidade", ["Crítica","Alta","Média","Baixa"], key="err_sev")
-        with c2:
-            try:
-                df_ops = db.load_operadores()
-                op_lista = df_ops["nome"].tolist() if not df_ops.empty else []
-            except: op_lista = []
-            op_err  = st.selectbox("Operador", ["—"] + op_lista, key="err_op")
-            hora_err = st.text_input("Horário", value=datetime.now().strftime("%H:%M:%S"), key="err_hora")
-        with c3:
-            desc_err = st.text_area("Descrição do Erro *", height=100, key="err_desc")
-
-        if st.button("Registrar Erro", use_container_width=True, key="btn_salvar_err"):
-            if not desc_err:
-                st.markdown('<div class="cx-error">Descrição é obrigatória.</div>', unsafe_allow_html=True)
-            else:
-                try:
-                    db.save_erro({"horario":hora_err,"categoria":cat_err.split(" - ")[0],"descricao":desc_err,"operador":op_err,"severidade":sev_err,"status":"Aberto"})
-                    st.markdown('<div class="cx-success">✓ Erro registrado no Google Sheets!</div>', unsafe_allow_html=True)
-                    st.rerun()
-                except Exception as e:
-                    st.error(str(e))
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with tab_stats:
-        try:
-            df_erros = db.load_erros()
-            if not df_erros.empty and "categoria" in df_erros.columns:
-                contagem = df_erros["categoria"].value_counts()
-                fig = px.pie(values=contagem.values, names=contagem.index,
-                             color_discrete_sequence=["#FFD700","#dcb8ff","#FF3B3B","#00e479","#a09d9c"],
-                             hole=0.6)
-                layout_pie = dict(**PLOTLY_LAYOUT)
-                layout_pie["showlegend"] = True
-                layout_pie["height"] = 300
-                fig.update_layout(**layout_pie)
-                st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
-            else:
-                st.markdown('<div class="cx-info" style="text-align:center;padding:32px">Sem dados suficientes para estatísticas.</div>', unsafe_allow_html=True)
-        except Exception as e:
-            st.error(str(e))
-
-
-# ─────────────────────────────────────────
-# PÁGINA: FEEDBACK AO OPERADOR
-# ─────────────────────────────────────────
-def page_feedback_op():
-    section_title("Entregar Feedback")
-    section_sub("Registre e envie feedback de avaliação ao operador.")
-
-    col_form, col_preview = st.columns([2, 1])
-
-    with col_form:
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">👤 Operador</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            try:
-                df_ops = db.load_operadores()
-                op_lista = df_ops["nome"].tolist() if not df_ops.empty else []
-            except: op_lista = []
-            op_fb = st.selectbox("Operador *", ["Selecionar..."] + op_lista, key="fb_op")
-        with c2:
-            data_fb = st.date_input("Data da Avaliação", key="fb_data")
-        with c3:
-            tipo_fb = st.selectbox("Tipo de Feedback", ["Positivo","Corretivo","Desenvolvimento","Reconhecimento"], key="fb_tipo")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">☑ Critérios Avaliados</div>', unsafe_allow_html=True)
-        criterios_fb = {
-            "Saudação e Identificação": ("saud", 10),
-            "Escuta Ativa e Empatia":   ("emp",  25),
-            "Resolução Técnica":        ("res",  40),
-            "Encerramento":             ("enc",  25),
-        }
-        star_scores = {}
-        labels_stars = ["Não avaliado","Insuficiente","Abaixo do esperado","Dentro do esperado","Acima do esperado","Excelente"]
-        for label, (key, peso) in criterios_fb.items():
-            c_l, c_s = st.columns([3, 1])
-            with c_l:
-                st.markdown(f'<div style="font-size:14px;font-weight:500;margin-bottom:4px">{label} <span style="font-size:11px;color:#FFD700">Peso {peso}%</span></div>', unsafe_allow_html=True)
-            with c_s:
-                val = st.select_slider("", options=[0,1,2,3,4,5], value=0, key=f"fb_star_{key}", label_visibility="collapsed")
-                star_scores[key] = (val, peso)
-            st.markdown(f'<div style="font-size:11px;color:#a09d9c;margin-bottom:10px">{"★"*val}{"☆"*(5-val)} — {labels_stars[val]}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">✉ Mensagem ao Operador</div>', unsafe_allow_html=True)
-        positivo = st.text_area("Pontos Positivos",   placeholder="O que o operador fez bem...",      height=80, key="fb_pos")
-        melhoria = st.text_area("Pontos de Melhoria", placeholder="O que precisa ser ajustado...",    height=80, key="fb_mel")
-        plano    = st.text_area("Plano de Ação",      placeholder="Próximos passos concretos...",     height=60, key="fb_pln")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:12px">👁 Visibilidade</div>', unsafe_allow_html=True)
-        c1, c2, c3 = st.columns(3)
-        with c1: vis_op  = st.checkbox("Visível para o operador", value=True, key="fb_vis_op")
-        with c2: vis_ges = st.checkbox("Visível para gestores",   value=True, key="fb_vis_ges")
-        with c3: notif   = st.checkbox("Notificar por e-mail",    value=False, key="fb_notif")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_preview:
-        total, peso_total = 0, 0
-        for key, (val, peso) in star_scores.items():
-            if val > 0:
-                total += (val/5) * peso
-                peso_total += peso
-        nota_fb = round(total/peso_total*100) if peso_total > 0 else 0
-        cor_fb = "#00e479" if nota_fb >= 80 else "#FFD700" if nota_fb >= 60 else "#ff6b6b"
-
-        nome_op_display = op_fb.split("—")[0].strip() if op_fb != "Selecionar..." else "—"
-        initials_fb = "".join(w[0] for w in nome_op_display.split()[:2]).upper() if nome_op_display != "—" else "—"
-
-        st.markdown(f"""
-        <div class="cx-card" style="border-color:rgba(255,215,0,0.2)">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#a09d9c;margin-bottom:14px">Preview</div>
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-            <div style="width:48px;height:48px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;color:#FFD700">{initials_fb}</div>
-            <div>
-              <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600">{nome_op_display}</div>
-              <div style="font-size:12px;color:#a09d9c">{tipo_fb}</div>
-            </div>
-          </div>
-          <div style="font-size:11px;color:#a09d9c;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em">Nota Calculada</div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:48px;font-weight:700;color:{cor_fb};line-height:1">{nota_fb}</div>
-          <div style="font-size:16px;color:#a09d9c;margin-bottom:12px">/100</div>
-          <div style="height:6px;background:#2a2a2a;border-radius:3px"><div style="height:100%;width:{nota_fb}%;background:{cor_fb};border-radius:3px;transition:width 0.4s"></div></div>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown('<div class="cx-card" style="margin-top:14px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Feedbacks Anteriores</div>', unsafe_allow_html=True)
-        if op_fb != "Selecionar...":
-            try:
-                df_fb = db.load_feedbacks()
-                if not df_fb.empty:
-                    op_hist = df_fb[df_fb["operador"] == nome_op_display].tail(3)
-                    if op_hist.empty:
-                        st.markdown('<div style="font-size:12px;color:#a09d9c">Nenhum feedback anterior.</div>', unsafe_allow_html=True)
-                    else:
-                        for _, r in op_hist.iterrows():
-                            st.markdown(f"""
-                            <div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-                              <div style="display:flex;justify-content:space-between"><span style="font-size:13px;font-weight:500">{r.get("tipo","—")}</span><span style="font-size:11px;color:#FFD700;font-weight:700">{r.get("nota","—")}/100</span></div>
-                              <div style="font-size:11px;color:#a09d9c">{r.get("data","—")}</div>
-                            </div>""", unsafe_allow_html=True)
-            except:
-                st.markdown('<div style="font-size:12px;color:#a09d9c">Sem histórico disponível.</div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<div style="font-size:12px;color:#a09d9c">Selecione um operador.</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-        if st.button("📤 Enviar Feedback", use_container_width=True, key="btn_enviar_fb"):
-            if op_fb == "Selecionar...":
-                st.markdown('<div class="cx-error">Selecione um operador.</div>', unsafe_allow_html=True)
-            else:
-                try:
-                    user = st.session_state.user or {}
-                    db.save_feedback({
-                        "operador": nome_op_display,
-                        "data": str(data_fb),
-                        "tipo": tipo_fb,
-                        "nota": nota_fb,
-                        "positivo": positivo,
-                        "melhoria": melhoria,
-                        "plano": plano,
-                        "vis_operador": str(vis_op),
-                        "vis_gestor": str(vis_ges),
-                        "notif_email": str(notif),
-                        "auditor": user.get("nome","Sistema"),
-                        "status": "Enviado",
-                    })
-                    st.markdown(f'<div class="cx-success">✓ Feedback enviado para {nome_op_display} e salvo no Google Sheets!</div>', unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(str(e))
-
-        if st.button("💾 Salvar Rascunho", use_container_width=True, key="btn_rascunho_fb"):
-            if op_fb != "Selecionar...":
-                try:
-                    user = st.session_state.user or {}
-                    db.save_feedback({"operador":nome_op_display,"data":str(data_fb),"tipo":tipo_fb,"nota":nota_fb,"positivo":positivo,"melhoria":melhoria,"plano":plano,"auditor":user.get("nome","Sistema"),"status":"Rascunho"})
-                    st.markdown('<div class="cx-info">Rascunho salvo!</div>', unsafe_allow_html=True)
-                except Exception as e:
-                    st.error(str(e))
-
-
-# ─────────────────────────────────────────
-# PÁGINA: IA DE QUALIDADE
-# ─────────────────────────────────────────
-def page_ia():
-    section_title("✦ IA de Qualidade")
-    section_sub("Insights executivos e análise preditiva powered by Claude.")
-
-    col_main, col_side = st.columns([2, 1])
-
-    with col_main:
-        st.markdown("""
-        <div class="cx-card">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-            <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:600">☰ Diagnóstico de IA</div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#00e479;font-weight:600"><div style="width:6px;height:6px;border-radius:50%;background:#00e479"></div>Processamento em Tempo Real</div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-            <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:14px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#a09d9c;margin-bottom:10px">Principais Gargalos</div>
-              <div style="font-size:14px;font-weight:500;margin-bottom:3px">Tempo Médio de Silêncio <span style="color:#ff6b6b;font-size:13px;font-weight:600">+22%</span></div>
-              <div style="font-size:12px;color:#a09d9c;margin-bottom:10px">Crítico em 14% das chamadas</div>
-              <div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-size:13px;font-weight:500">FCR na 1ª Chamada</span><span style="color:#FFD700;font-weight:700">78%</span></div>
-              <div style="height:4px;background:#2a2a2a;border-radius:2px"><div style="height:100%;width:78%;background:#FFD700;border-radius:2px"></div></div>
-              <div style="font-size:11px;color:#a09d9c;margin-top:3px">Abaixo do KPI alvo (85%)</div>
-            </div>
-            <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-radius:4px;padding:14px">
-              <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#a09d9c;margin-bottom:10px">Operadores em Risco</div>
-              <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-                <div style="width:28px;height:28px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#FFD700">RS</div>
-                <div><div style="font-size:13px;font-weight:500">Ricardo Silva</div><div style="font-size:11px;color:#ff6b6b">Tendência de Queda ↘</div></div>
-              </div>
-              <div style="display:flex;align-items:center;gap:8px;padding:8px 0">
-                <div style="width:28px;height:28px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#FFD700">AM</div>
-                <div><div style="font-size:13px;font-weight:500">Ana Martins</div><div style="font-size:11px;color:#ffa040">Alta Irritabilidade ⚠</div></div>
-              </div>
-            </div>
-          </div>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;color:#dcb8ff;margin-bottom:16px">✦ Chat com a IA de Qualidade</div>', unsafe_allow_html=True)
-
-        chat_container = st.container()
-        with chat_container:
-            if not st.session_state.ia_messages:
-                st.markdown('<div class="ia-msg-assistant"><div class="ia-role ia-role-bot">✦ IA CX Command</div>Olá! Sou a IA de Qualidade do CX Command. Posso analisar métricas, identificar padrões de erros e gerar insights executivos. Como posso ajudar?</div>', unsafe_allow_html=True)
-            for msg in st.session_state.ia_messages:
-                if msg["role"] == "user":
-                    st.markdown(f'<div class="ia-msg-user"><div class="ia-role ia-role-user">👤 Analista</div>{msg["content"]}</div>', unsafe_allow_html=True)
-                else:
-                    content = msg["content"].replace("\n", "<br>").replace("**","<strong>",1)
-                    st.markdown(f'<div class="ia-msg-assistant"><div class="ia-role ia-role-bot">✦ IA CX Command</div>{content}</div>', unsafe_allow_html=True)
-
-        qcols = st.columns(4)
-        quick_prompts = [
-            ("📊 Problemas da semana", "Quais são os principais problemas de qualidade desta semana?"),
-            ("🎯 Plano de melhoria",   "Gere um plano de melhoria para operadores com nota abaixo de 70%"),
-            ("🔮 Previsão de riscos",  "Analise tendências de erro nos últimos 30 dias e preveja riscos"),
-            ("⚠ Operadores em risco", "Quais operadores estão em risco de queda de performance?"),
-        ]
-        for i, (label, prompt) in enumerate(quick_prompts):
-            with qcols[i]:
-                if st.button(label, key=f"quick_{i}", use_container_width=True):
-                    st.session_state.ia_messages.append({"role":"user","content":prompt})
-                    with st.spinner("IA analisando..."):
-                        resposta = chamar_claude(prompt)
-                    st.session_state.ia_messages.append({"role":"assistant","content":resposta})
-                    st.rerun()
-
-        col_inp, col_send = st.columns([5, 1])
-        with col_inp:
-            user_msg = st.text_input("", placeholder="Faça uma pergunta sobre a operação...", key="ia_input", label_visibility="collapsed")
-        with col_send:
-            if st.button("Enviar ✦", use_container_width=True, key="ia_send"):
-                if user_msg.strip():
-                    st.session_state.ia_messages.append({"role":"user","content":user_msg})
-                    with st.spinner("IA analisando..."):
-                        resposta = chamar_claude(user_msg)
-                    st.session_state.ia_messages.append({"role":"assistant","content":resposta})
-                    st.rerun()
-
-        if st.button("🗑 Limpar conversa", key="ia_clear"):
-            st.session_state.ia_messages = []
-            st.rerun()
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col_side:
-        st.markdown("""
-        <div class="cx-card" style="border-color:rgba(220,184,255,0.25);text-align:center">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.1em;color:#a09d9c;margin-bottom:16px">Status da IA</div>
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:56px;font-weight:700;color:#dcb8ff;line-height:1">89</div>
-          <div style="font-size:11px;color:#a09d9c;margin-bottom:12px">SCORE GERAL</div>
-          <div style="font-size:14px;font-weight:600;margin-bottom:6px">Performance Ótima</div>
-          <div style="font-size:12px;color:#a09d9c;margin-bottom:16px">Operação 12% acima da média do setor.</div>
-          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-size:12px;color:#a09d9c">Confiança da IA</span><span style="font-size:12px;font-weight:600;color:#00e479">98.2%</span></div>
-          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04)"><span style="font-size:12px;color:#a09d9c">Modelo</span><span style="font-size:12px;font-weight:600;color:#dcb8ff">Claude Sonnet</span></div>
-        </div>""", unsafe_allow_html=True)
-
-        st.markdown("""
-        <div class="cx-card" style="border-color:rgba(220,184,255,0.2);margin-top:14px">
-          <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#dcb8ff;font-weight:700;margin-bottom:10px">🔮 IA Predição</div>
-          <div style="font-size:13px;color:#a09d9c;line-height:1.6;font-style:italic">"Com base na tendência atual de reclamações, prevemos aumento de 15% no volume de chamadas nas próximas 48h."</div>
-        </div>""", unsafe_allow_html=True)
-
-        if st.button("✦ Análise Executiva Completa", use_container_width=True, key="ia_full"):
-            prompt = "Faça uma análise executiva completa da operação atual. Identifique os 3 principais problemas, os maiores riscos para os próximos 7 dias e sugira 3 ações prioritárias com responsáveis e prazos."
-            st.session_state.ia_messages.append({"role":"user","content":prompt})
-            with st.spinner("Gerando análise completa..."):
-                resposta = chamar_claude(prompt)
-            st.session_state.ia_messages.append({"role":"assistant","content":resposta})
-            st.rerun()
-
-
-def chamar_claude(mensagem: str) -> str:
-    """Chama a API do Claude com contexto da operação."""
-    try:
-        api_key = st.secrets.get("anthropic_api_key", "")
-        if not api_key:
-            return "⚠ API Key do Claude não configurada. Adicione `anthropic_api_key` no arquivo `.streamlit/secrets.toml`."
-
-        client = anthropic.Anthropic(api_key=api_key)
-
-        system_prompt = """Você é a IA de Qualidade do CX Command, especializada em análise de call centers.
-
-Dados atuais da operação:
-- Nota Média Geral: 95.0 (↑4.2%) | Nota MP: 92.1 (↑1.8%)
-- Operadores: 142 ativos | FCR: 78% (meta 85%)
-- Erros 24h: 124 (↑12%) | NPS: 8.7
-- Top: Ana Silva (98.5%), Henrique M. (96.8%), Clara J. (92.0%)
-- Em risco: Ricardo Silva (queda), Ana Martins (irritabilidade alta)
-
-Responda em português, de forma objetiva e executiva. Use **negrito** para pontos críticos."""
-
-        history = [{"role": m["role"], "content": m["content"]}
-                   for m in st.session_state.ia_messages[:-1]]
-
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1000,
-            system=system_prompt,
-            messages=history + [{"role":"user","content":mensagem}]
+# ═══════════════════════════════════════════════════════════════════════════════
+def pagina_dashboard(user, readonly=False):
+    st.markdown("# 🌌 Dashboard")
+    st.markdown(f"<p style='color:#4CC9F0;font-size:13px;'>Atualizado em {datetime.now().strftime('%d/%m/%Y %H:%M')}</p>", unsafe_allow_html=True)
+ 
+    operadores = load_operadores()
+    avaliacoes = load_avaliacoes()
+    faixas     = load_faixas()
+    pesos      = st.session_state.pesos
+ 
+    ativos = [o for o in operadores if o.get("status") == "Ativo"]
+ 
+    # Métricas do topo
+    all_mps    = [float(e["mp"]) for e in avaliacoes if e.get("mp") not in (None, "")]
+    all_finals = [eval_final(e, pesos) for e in avaliacoes]
+    all_finals = [v for v in all_finals if v is not None]
+ 
+    avg_mp  = round(sum(all_mps) / len(all_mps), 2) if all_mps else None
+    avg_fin = round(sum(all_finals) / len(all_finals), 2) if all_finals else None
+ 
+    # Total de bonificação: última avaliação de cada operador ativo
+    total_bonus = 0
+    for op in ativos:
+        op_evals = sorted([e for e in avaliacoes if e["op_id"] == op["id"]], key=lambda x: (x.get("mes",""), x.get("ciclo","")), reverse=True)
+        if op_evals:
+            fn = eval_final(op_evals[0], pesos)
+            fx = get_faixa(fn, faixas)
+            total_bonus += fx["bonus"] if fx else 0
+ 
+    abaixo_80 = sum(
+        1 for op in ativos
+        if (lambda ev: ev is not None and eval_final(ev, pesos) is not None and eval_final(ev, pesos) < 80)(
+            next((e for e in sorted([e for e in avaliacoes if e["op_id"] == op["id"]],
+                                     key=lambda x:(x.get("mes",""),x.get("ciclo","")),reverse=True)), None)
         )
-        return response.content[0].text
-    except Exception as e:
-        return f"❌ Erro ao chamar Claude: {str(e)}"
-
-
-# ─────────────────────────────────────────
-# PÁGINA: BASE QA
-# ─────────────────────────────────────────
-def page_base_qa():
-    section_title("Base QA")
-    section_sub("Matriz de critérios e avaliações individuais de operadores.")
-
-    tab_matriz, tab_av = st.tabs(["📋  Matriz de Critérios", "📄  Avaliações Individuais (.docx)"])
-
-    with tab_matriz:
-        col_up, col_status = st.columns([2, 1])
-        with col_up:
-            st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:6px">Matriz de Qualidade (PDF)</div><div style="font-size:13px;color:#a09d9c;margin-bottom:20px">Faça upload da sua matriz QA em PDF como referência central do sistema.</div>', unsafe_allow_html=True)
-            pdf_file = st.file_uploader("Selecione o PDF da Matriz QA", type=["pdf"], key="matriz_upload")
-            if pdf_file:
-                st.session_state["matriz_pdf"]  = pdf_file.read()
-                st.session_state["matriz_nome"] = pdf_file.name
-                st.markdown(f'<div class="cx-success">✓ Matriz "{pdf_file.name}" carregada com sucesso!</div>', unsafe_allow_html=True)
-                st.download_button("⬇ Baixar Matriz", data=st.session_state["matriz_pdf"], file_name=pdf_file.name, mime="application/pdf")
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with col_status:
-            if "matriz_nome" in st.session_state:
-                st.markdown(f"""
-                <div class="cx-card">
-                  <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#a09d9c;margin-bottom:12px">Status da Matriz</div>
-                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-                    <div style="width:36px;height:36px;border-radius:4px;background:rgba(0,228,121,0.1);border:1px solid rgba(0,228,121,0.25);display:flex;align-items:center;justify-content:center;font-size:18px">✓</div>
-                    <div><div style="font-size:13px;font-weight:600;color:#00e479">Matriz carregada</div><div style="font-size:11px;color:#a09d9c">{st.session_state.get("matriz_nome","—")}</div></div>
-                  </div>
-                  <div style="font-size:12px;color:#a09d9c;line-height:1.6">Esta matriz está sendo usada como referência para análises de IA do sistema.</div>
-                </div>""", unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="cx-card"><div style="text-align:center;padding:24px 0;color:#a09d9c"><div style="font-size:32px;margin-bottom:8px">📭</div><div style="font-size:13px">Nenhuma matriz carregada</div></div></div>', unsafe_allow_html=True)
-
-    with tab_av:
-        col_up2, col_hist = st.columns([2, 1])
-        with col_up2:
-            st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:6px">Enviar Avaliação Individual</div><div style="font-size:13px;color:#a09d9c;margin-bottom:16px">Envie o .docx com a avaliação do operador. A IA extrai as informações automaticamente.</div>', unsafe_allow_html=True)
-
-            c1, c2 = st.columns(2)
-            with c1:
-                try:
-                    df_ops = db.load_operadores()
-                    op_lista = df_ops["nome"].tolist() if not df_ops.empty else []
-                except: op_lista = []
-                op_av = st.selectbox("Operador *", ["Selecionar..."] + op_lista, key="qa_op")
-            with c2:
-                periodo_av = st.text_input("Período (ex: Jun/2024)", key="qa_periodo")
-
-            docx_file = st.file_uploader("Selecione o arquivo .docx", type=["docx","doc"], key="qa_docx_upload")
-
-            if docx_file and op_av != "Selecionar...":
-                if st.button("✦ Analisar com IA", use_container_width=True, key="btn_analisar_docx"):
-                    with st.spinner("Extraindo texto do .docx..."):
-                        try:
-                            result = mammoth.extract_raw_text(docx_file)
-                            texto  = result.value
-                        except Exception as e:
-                            texto = f"[Erro ao extrair: {e}]"
-
-                    with st.spinner("IA analisando avaliação — extraindo todos os critérios..."):
-                        texto_truncado = texto[:8000]
-                        prompt = f"""Você é um extrator de dados de documentos de avaliação de qualidade (QA) de call center.
-
-Leia o documento abaixo e extraia TODAS as informações de avaliação presentes.
-Retorne SOMENTE um JSON válido, sem markdown, sem texto antes ou depois.
-
-Regras:
-- Extraia TODOS os critérios de avaliação encontrados no documento, sem omitir nenhum.
-- Para cada critério, extraia o nome exato, a nota recebida e o peso (se disponível).
-- Se uma nota estiver em escala diferente de 0-10, converta proporcionalmente para 0-10.
-- Se não encontrar um campo, use null (não invente valores).
-- O campo "acertos" deve conter pontos positivos mencionados no documento.
-- O campo "erros" deve conter falhas ou pontos negativos mencionados.
-- O campo "melhorias" deve conter sugestões de desenvolvimento mencionadas.
-- O campo "observacoes" deve conter quaisquer outros comentários do avaliador.
-- "notaFinal" deve ser a nota geral final do documento (escala 0-100).
-- "softSkills" e "tecnico" devem ser extraídos se o documento os mencionar separadamente (escala 0-100).
-
-DOCUMENTO:
-{texto_truncado}
-
-Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
-{{
-  "notaFinal": null,
-  "softSkills": null,
-  "tecnico": null,
-  "criterios": [
-    {{"nome": "Nome exato do critério", "nota": null, "peso": "ex: 20%", "observacao": ""}}
-  ],
-  "acertos": "",
-  "erros": "",
-  "melhorias": "",
-  "observacoes": ""
-}}"""
-                        resposta_ia = chamar_claude(prompt)
-
-                    try:
-                        import json, re
-                        match = re.search(r'\{.*\}', resposta_ia, re.DOTALL)
-                        dados = json.loads(match.group(0)) if match else {}
-                    except:
-                        dados = {}
-
-                    st.session_state["qa_resultado"]   = dados
-                    st.session_state["qa_texto_bruto"] = texto
-
-            if "qa_resultado" in st.session_state:
-                dados = st.session_state["qa_resultado"]
-                st.markdown('<hr><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;color:#dcb8ff;margin:12px 0">✦ Resultado da Análise — Edite antes de salvar</div>', unsafe_allow_html=True)
-
-                c1, c2, c3 = st.columns(3)
-                with c1: nf  = st.number_input("Nota Final",   0.0, 100.0, float(dados.get("notaFinal")  or 0), key="qa_nf")
-                with c2: ss  = st.number_input("Soft Skills",  0.0, 100.0, float(dados.get("softSkills") or 0), key="qa_ss")
-                with c3: tec = st.number_input("Técnico",      0.0, 100.0, float(dados.get("tecnico")    or 0), key="qa_tec")
-
-                criterios_extraidos = dados.get("criterios", [])
-                if criterios_extraidos:
-                    st.markdown("""
-                    <div style="font-size:13px;font-weight:600;color:#a09d9c;margin:14px 0 8px;
-                                text-transform:uppercase;letter-spacing:0.08em;
-                                padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)">
-                      Critérios Extraídos
-                    </div>""", unsafe_allow_html=True)
-                    for i, crit in enumerate(criterios_extraidos):
-                        cc1, cc2, cc3 = st.columns([3, 1, 1])
-                        with cc1:
-                            st.text_input(
-                                f"Critério {i+1}",
-                                value=crit.get("nome", ""),
-                                key=f"qa_crit_nome_{i}"
-                            )
-                        with cc2:
-                            nota_raw = crit.get("nota")
-                            nota_val = float(nota_raw) if nota_raw is not None else 0.0
-                            st.number_input(
-                                "Nota (0-10)",
-                                min_value=0.0, max_value=10.0,
-                                value=min(nota_val, 10.0),
-                                step=0.1,
-                                key=f"qa_crit_nota_{i}"
-                            )
-                        with cc3:
-                            st.text_input(
-                                "Peso",
-                                value=crit.get("peso", ""),
-                                key=f"qa_crit_peso_{i}"
-                            )
-                        obs_crit = crit.get("observacao", "")
-                        if obs_crit:
-                            st.markdown(f'<div style="font-size:11px;color:#a09d9c;margin:-8px 0 10px;font-style:italic">{obs_crit}</div>', unsafe_allow_html=True)
-
-                acertos   = st.text_area("✓ Pontos Certos",      value=dados.get("acertos",""),    height=80, key="qa_ac")
-                erros     = st.text_area("✕ Pontos de Erro",     value=dados.get("erros",""),      height=80, key="qa_er")
-                melhorias = st.text_area("↗ Pontos de Melhoria", value=dados.get("melhorias",""),  height=80, key="qa_me")
-                obs       = st.text_area("Observações Gerais",   value=dados.get("observacoes",""),height=80, key="qa_ob")
-
-                if st.button("💾 Salvar Avaliação", use_container_width=True, key="btn_salvar_qa"):
-                    try:
-                        user = st.session_state.user or {}
-
-                        criterios_str = ""
-                        if criterios_extraidos:
-                            linhas = []
-                            for i, crit in enumerate(criterios_extraidos):
-                                nome_c = st.session_state.get(f"qa_crit_nome_{i}", crit.get("nome",""))
-                                nota_c = st.session_state.get(f"qa_crit_nota_{i}", 0.0)
-                                peso_c = st.session_state.get(f"qa_crit_peso_{i}", crit.get("peso",""))
-                                linhas.append(f"• {nome_c} | Nota: {nota_c} | Peso: {peso_c}")
-                            criterios_str = "CRITÉRIOS:\n" + "\n".join(linhas) + "\n\n"
-
-                        parecer_completo = (
-                            f"{criterios_str}"
-                            f"Acertos: {acertos}\n"
-                            f"Erros: {erros}\n"
-                            f"Melhorias: {melhorias}\n"
-                            f"Obs: {obs}"
-                        )
-
-                        db.save_avaliacao({
-                            "operador": op_av,
-                            "data_chamada": periodo_av,
-                            "tipo": "Base QA (.docx)",
-                            "nota_final": nf,
-                            "soft_skills": ss,
-                            "tecnico": tec,
-                            "saudacao": "", "empatia": "", "resolucao": "", "encerramento": "",
-                            "parecer": parecer_completo,
-                            "auditor": user.get("nome","Sistema"),
-                        })
-                        del st.session_state["qa_resultado"]
-                        st.markdown('<div class="cx-success">✓ Avaliação salva no Google Sheets!</div>', unsafe_allow_html=True)
-                        st.rerun()
-                    except Exception as e:
-                        st.error(str(e))
-
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with col_hist:
-            st.markdown('<div class="cx-card"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Avaliações Registradas</div>', unsafe_allow_html=True)
-            try:
-                df_av2  = db.load_avaliacoes()
-                qa_avs  = df_av2[df_av2["tipo"].str.contains("docx|QA", case=False, na=False)] if not df_av2.empty else pd.DataFrame()
-                if qa_avs.empty:
-                    st.markdown('<div style="text-align:center;padding:28px 0;color:#a09d9c;font-size:13px">📭 Nenhuma avaliação ainda.</div>', unsafe_allow_html=True)
+    )
+ 
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("👥 Operadores ativos", len(ativos), f"de {len(operadores)}")
+    c2.metric("📊 Avaliações", len(avaliacoes))
+    c3.metric("🎯 Média MP", f"{avg_mp:.1f}" if avg_mp else "—")
+    c4.metric("🏆 Nota final média", f"{avg_fin:.1f}%" if avg_fin else "—")
+    c5.metric("⚠️ Abaixo de 80%", abaixo_80)
+    c6.metric("💰 Total bonificação", f"R$ {total_bonus:.2f}")
+ 
+    st.markdown("---")
+ 
+    # Seletor de mês
+    meses_disponíveis = sorted(set(e.get("mes","") for e in avaliacoes if e.get("mes")), reverse=True)
+    col_sel, _ = st.columns([2, 4])
+    with col_sel:
+        mes_sel = st.selectbox("📅 Filtrar por mês", ["Todos"] + meses_disponíveis, key="dash_mes")
+ 
+    # Tabela resumo da equipe
+    st.markdown("### 🧑‍🚀 Resumo da equipe")
+    rows = []
+    for op in ativos:
+        op_evals = [e for e in avaliacoes if e["op_id"] == op["id"]]
+        if mes_sel != "Todos":
+            op_evals = [e for e in op_evals if e.get("mes") == mes_sel]
+        op_evals_sorted = sorted(op_evals, key=lambda x: x.get("ciclo",""), reverse=True)
+        last = op_evals_sorted[0] if op_evals_sorted else None
+ 
+        mp_val  = float(last["mp"]) if last and last.get("mp") not in (None,"") else None
+        int_val = eval_int(last) if last else None
+        fin_val = eval_final(last, pesos) if last else None
+        fx      = get_faixa(fin_val, faixas)
+ 
+        rows.append({
+            "Operador":    op["nome"],
+            "Cargo":       op.get("cargo","—"),
+            "Tempo de casa": tenure(op.get("adm")),
+            "Nota MP":     f"{mp_val:.1f}" if mp_val is not None else "—",
+            "Média interna": f"{int_val:.1f}" if int_val is not None else "—",
+            "Nota final":  f"{fin_val:.1f}%" if fin_val is not None else "—",
+            "Faixa":       fx["desc"] if fx else "—",
+            "Bônus":       f"R$ {fx['bonus']:.2f}" if fx else "R$ 0,00",
+        })
+ 
+    if rows:
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    else:
+        st.info("Nenhum dado para exibir. Cadastre operadores e avaliações.")
+ 
+    # Médias por ciclo no mês selecionado
+    if mes_sel != "Todos":
+        st.markdown(f"### 📊 Médias por ciclo — {mes_sel}")
+        ciclo_data = []
+        for ciclo in CICLOS:
+            ciclo_evals = [e for e in avaliacoes if e.get("mes") == mes_sel and e.get("ciclo") == ciclo]
+            if not ciclo_evals:
+                continue
+            fins = [eval_final(e, pesos) for e in ciclo_evals]
+            fins = [v for v in fins if v is not None]
+            mps  = [float(e["mp"]) for e in ciclo_evals if e.get("mp") not in (None,"")]
+            ciclo_data.append({
+                "Ciclo":      ciclo,
+                "Média MP":   round(sum(mps)/len(mps),2) if mps else None,
+                "Nota final": round(sum(fins)/len(fins),2) if fins else None,
+                "Operadores avaliados": len(ciclo_evals),
+            })
+        if ciclo_data:
+            df_c = pd.DataFrame(ciclo_data)
+            st.dataframe(df_c, use_container_width=True, hide_index=True)
+ 
+            import json as _json
+            labels = [r["Ciclo"] for r in ciclo_data]
+            finals = [r["Nota final"] or 0 for r in ciclo_data]
+            chart_data = pd.DataFrame({"Ciclo": labels, "Nota Final (%)": finals})
+            st.line_chart(chart_data.set_index("Ciclo"), color="#4CC9F0")
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA: OPERADORES
+# ═══════════════════════════════════════════════════════════════════════════════
+def pagina_operadores(user, readonly=False):
+    st.markdown("# 👥 Operadores")
+ 
+    operadores = load_operadores()
+    pesos      = st.session_state.pesos
+    avaliacoes = load_avaliacoes()
+    faixas     = load_faixas()
+ 
+    if not readonly:
+        with st.expander("➕ Cadastrar novo operador", expanded=False):
+            with st.form("form_op"):
+                c1, c2 = st.columns(2)
+                nome   = c1.text_input("Nome completo")
+                cargo  = c2.selectbox("Cargo", ["Atendente","Atendente Sênior","Analista","Especialista"])
+                c3, c4 = st.columns(2)
+                adm    = c3.date_input("Data de admissão", value=date.today())
+                status = c4.selectbox("Status", ["Ativo","Afastado","Desligado"])
+                notas  = st.text_area("Observações gerais", height=80)
+                # Criar login de tripulação
+                st.markdown("**Login do operador (Tripulação)**")
+                c5, c6 = st.columns(2)
+                login_op = c5.text_input("Login", placeholder="Ex.: ana.silva")
+                senha_op = c6.text_input("Senha", placeholder="Ex.: cx2024", type="password")
+                submit = st.form_submit_button("🚀 Salvar operador")
+ 
+            if submit:
+                if not nome.strip():
+                    st.error("Informe o nome do operador.")
                 else:
-                    for _, r in qa_avs.tail(10).iterrows():
-                        nota    = r.get("nota_final","—")
-                        cor     = score_color(nota)
-                        cor_css = {"green":"#00e479","yellow":"#FFD700","red":"#ff6b6b","gray":"#a09d9c"}[cor]
-                        st.markdown(f"""
-                        <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-                          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-                            <span style="font-size:13px;font-weight:600">{r.get("operador","—")}</span>
-                            <span style="font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;color:{cor_css}">{nota}/100</span>
-                          </div>
-                          <div style="font-size:11px;color:#a09d9c">{r.get("data_chamada","—")} · {r.get("auditor","—")}</div>
-                        </div>""", unsafe_allow_html=True)
-            except Exception as e:
-                st.error(str(e))
-            st.markdown('</div>', unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
-# PÁGINA: CONFIGURAÇÕES
-# ─────────────────────────────────────────
-def page_config():
-    section_title("Configurações")
-    section_sub("Gerencie usuários e credenciais de acesso ao sistema.")
-
-    tab_users, tab_sys = st.tabs(["👥  Gerenciar Usuários", "⚙  Sistema"])
-
-    with tab_users:
-        col_list, col_form = st.columns([2, 1])
-
-        with col_list:
-            st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px">Usuários Cadastrados</div>', unsafe_allow_html=True)
-            try:
-                df_users = db.load_usuarios()
-                if df_users.empty:
-                    st.markdown('<div style="text-align:center;padding:24px;color:#a09d9c">Nenhum usuário. Crie o primeiro ao lado.</div>', unsafe_allow_html=True)
-                else:
-                    for _, u in df_users.iterrows():
-                        ativo  = str(u.get("ativo","true")).lower() != "false"
-                        perfil = u.get("perfil","—")
-                        badge_colors = {"admin":"red","gestor":"yellow","auditor":"green","operador":"gray"}
-                        st.markdown(f"""
-                        <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
-                          <div style="display:flex;align-items:center;gap:10px">
-                            <div style="width:32px;height:32px;border-radius:50%;background:#2a2a2a;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#FFD700">{"".join(w[0] for w in str(u.get("nome","?")).split()[:2]).upper()}</div>
-                            <div>
-                              <div style="font-size:14px;font-weight:600">{u.get("nome","—")}</div>
-                              <div style="font-size:11px;color:#a09d9c">@{u.get("usuario","—")} · {perfil_label(perfil)}</div>
-                            </div>
-                          </div>
-                          <div style="display:flex;align-items:center;gap:8px">
-                            <span class="badge badge-{badge_colors.get(perfil,'gray')}">{perfil_label(perfil)}</span>
-                            <span class="badge {'badge-green' if ativo else 'badge-red'}">{'Ativo' if ativo else 'Inativo'}</span>
-                          </div>
-                        </div>""", unsafe_allow_html=True)
-
-                        col_a, col_b = st.columns(2)
-                        with col_a:
-                            if st.button("Desativar" if ativo else "Ativar", key=f"tog_{u.get('id')}"):
-                                session = st.session_state.user or {}
-                                if u.get("usuario") == session.get("usuario"):
-                                    st.error("Você não pode desativar o próprio usuário.")
-                                else:
-                                    row = u.to_dict()
-                                    row["ativo"] = "false" if ativo else "true"
-                                    db.save_usuario(row)
-                                    st.rerun()
-                        with col_b:
-                            if st.button("✕ Excluir", key=f"del_{u.get('id')}"):
-                                session = st.session_state.user or {}
-                                if u.get("usuario") == session.get("usuario"):
-                                    st.error("Você não pode excluir o próprio usuário.")
-                                else:
-                                    db.delete_usuario(u.get("id"))
-                                    st.rerun()
-            except Exception as e:
-                st.error(str(e))
-            st.markdown('</div>', unsafe_allow_html=True)
-
-        with col_form:
-            st.markdown('<div class="cx-card" style="position:sticky;top:80px"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px">Novo Usuário</div>', unsafe_allow_html=True)
-            f_nome   = st.text_input("Nome Completo *",    key="f_nome")
-            f_user   = st.text_input("Usuário de Login *", key="f_user")
-            f_pass   = st.text_input("Senha *",            key="f_pass", type="password")
-            f_perfil = st.selectbox("Perfil", ["admin","gestor","auditor","operador"], key="f_perfil")
-
-            if st.button("Salvar Usuário", use_container_width=True, key="btn_criar_user"):
-                if not f_nome or not f_user or not f_pass:
-                    st.markdown('<div class="cx-error">Todos os campos são obrigatórios.</div>', unsafe_allow_html=True)
-                else:
-                    try:
-                        df_u = db.load_usuarios()
-                        if not df_u.empty and f_user.lower() in df_u["usuario"].str.lower().values:
-                            st.markdown('<div class="cx-error">Este usuário já existe.</div>', unsafe_allow_html=True)
+                    op_id = f"op_{int(datetime.now().timestamp()*1000)}"
+                    op = {
+                        "id": op_id, "nome": nome.strip(), "cargo": cargo,
+                        "adm": adm.strftime("%Y-%m-%d"), "status": status, "notas": notas,
+                    }
+                    operadores.append(op)
+                    save_operadores(operadores)
+                    # Criar usuário de tripulação se informado login
+                    if login_op.strip() and senha_op.strip():
+                        usuarios = load_usuarios()
+                        if any(u["login"] == login_op.strip() for u in usuarios):
+                            st.warning(f"Login '{login_op}' já existe. Operador salvo, mas login não criado.")
                         else:
-                            db.save_usuario({"nome":f_nome,"usuario":f_user.lower(),"senha":f_pass,"perfil":f_perfil,"ativo":"true"})
-                            st.markdown('<div class="cx-success">✓ Usuário criado no Google Sheets!</div>', unsafe_allow_html=True)
-                            st.rerun()
-                    except Exception as e:
-                        st.error(str(e))
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    with tab_sys:
-        st.markdown("""
-        <div class="cx-card">
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px">Conexão com Google Sheets</div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-            <div style="width:36px;height:36px;border-radius:4px;background:rgba(0,228,121,0.1);border:1px solid rgba(0,228,121,0.25);display:flex;align-items:center;justify-content:center;font-size:18px">✓</div>
-            <div>
-              <div style="font-size:13px;font-weight:600;color:#00e479">Conectado ao Google Sheets</div>
-              <div style="font-size:11px;color:#a09d9c">Salvamento automático ativo</div>
-            </div>
-          </div>
-          <div style="font-size:13px;color:#a09d9c;line-height:1.7">
-            Abas sincronizadas:<br>
-            ✓ usuarios &nbsp; ✓ operadores &nbsp; ✓ avaliacoes &nbsp; ✓ feedbacks &nbsp; ✓ banco_erros
-          </div>
-        </div>""", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────
-# ROTEADOR PRINCIPAL
-# ─────────────────────────────────────────
-def main():
-    if not st.session_state.logged_in:
-        page_login()
+                            usuarios.append({
+                                "login": login_op.strip(), "senha": senha_op.strip(),
+                                "nivel": "tripulacao", "nome": nome.strip(), "op_id": op_id
+                            })
+                            save_usuarios(usuarios)
+                    st.success(f"✅ Operador {nome} cadastrado com sucesso!")
+                    st.rerun()
+ 
+    st.markdown("---")
+    # Filtros
+    c1, c2 = st.columns([3, 1])
+    busca   = c1.text_input("🔍 Buscar operador", placeholder="Nome...")
+    filtro  = c2.selectbox("Status", ["Todos","Ativo","Afastado","Desligado"], key="op_filtro")
+ 
+    lista = [o for o in operadores
+             if (not busca or busca.lower() in o["nome"].lower())
+             and (filtro == "Todos" or o.get("status") == filtro)]
+ 
+    if not lista:
+        st.info("Nenhum operador encontrado.")
         return
-
-    render_sidebar()
-
-    page = st.session_state.page
-    routes = {
-        "dashboard":   page_dashboard,
-        "operadores":  page_operadores,
-        "avaliacoes":  page_avaliacoes,
-        "bancoerros":  page_bancoerros,
-        "feedback_op": page_feedback_op,
-        "ia":          page_ia,
-        "base_qa":     page_base_qa,
-        "config":      page_config,
+ 
+    for op in lista:
+        op_evals = sorted([e for e in avaliacoes if e["op_id"] == op["id"]],
+                          key=lambda x:(x.get("mes",""), x.get("ciclo","")), reverse=True)
+        last = op_evals[0] if op_evals else None
+        fn   = eval_final(last, pesos) if last else None
+        fx   = get_faixa(fn, faixas)
+ 
+        with st.expander(f"🧑‍🚀 {op['nome']} — {op.get('cargo','—')} · {tenure(op.get('adm'))} de empresa"):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Status", op.get("status","—"))
+            c2.metric("Tempo de casa", tenure(op.get("adm")))
+            if last:
+                mp_v = float(last["mp"]) if last.get("mp") not in (None,"") else None
+                c3.metric("Nota MP (última)", f"{mp_v:.1f}" if mp_v else "—")
+                c4.metric("Nota final", f"{fn:.1f}%" if fn else "—")
+            if op.get("notas"):
+                st.markdown(f"*Observações:* {op['notas']}")
+ 
+            if fn is not None:
+                pct = min(100, max(0, fn))
+                cor = "#4CC9F0" if fn >= 90 else "#FAC775" if fn >= 80 else "#F09595"
+                st.markdown(f"**Progresso na meta — {fn:.1f}%**")
+                st.progress(pct / 100)
+                st.markdown(badge_faixa(fx), unsafe_allow_html=True)
+ 
+                # Quanto falta para próxima faixa?
+                faixas_sorted = sorted(faixas, key=lambda x: x["min"])
+                proxima = next((f for f in faixas_sorted if f["min"] > fn), None)
+                if proxima:
+                    falta = round(proxima["min"] - fn, 2)
+                    st.markdown(f"<p style='color:#4CC9F0;font-size:13px;'>⭐ Faltam <strong>{falta} pontos</strong> para {proxima['desc']} (R$ {proxima['bonus']:.2f})</p>", unsafe_allow_html=True)
+ 
+            if not readonly:
+                col_e, col_d = st.columns([1, 5])
+                with col_e:
+                    if st.button("🗑️ Excluir", key=f"del_op_{op['id']}"):
+                        operadores = [o for o in operadores if o["id"] != op["id"]]
+                        save_operadores(operadores)
+                        st.success("Operador removido.")
+                        st.rerun()
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA: AVALIAÇÕES
+# ═══════════════════════════════════════════════════════════════════════════════
+def pagina_avaliacoes(user, readonly=False):
+    st.markdown("# 📋 Avaliações")
+ 
+    operadores = load_operadores()
+    avaliacoes = load_avaliacoes()
+    pesos      = st.session_state.pesos
+ 
+    ativos = [o for o in operadores if o.get("status") == "Ativo"]
+ 
+    if not readonly and ativos:
+        with st.expander("➕ Registrar nova avaliação", expanded=False):
+            with st.form("form_eval"):
+                c1, c2, c3 = st.columns(3)
+                op_names = {o["id"]: o["nome"] for o in ativos}
+                op_sel_nome = c1.selectbox("Operador", list(op_names.values()))
+                op_sel_id   = next(k for k, v in op_names.items() if v == op_sel_nome)
+                mes_sel     = c2.selectbox("Mês de referência", list(MESES_LABEL.values()))
+                ciclo_sel   = c3.selectbox("Ciclo / Semana", CICLOS)
+ 
+                st.markdown("**Notas do Mercado Pago**")
+                c4, c5, c6, c7 = st.columns(4)
+                mp_val   = c4.number_input("Nota MP (0–10)", 0.0, 10.0, step=0.1, format="%.1f")
+                tma_val  = c5.number_input("TMA (min)", 0.0, 999.0, step=0.1, format="%.1f")
+                fcr_val  = c6.number_input("FCR (%)", 0.0, 100.0, step=0.1, format="%.1f")
+                csat_val = c7.number_input("CSAT (0–10)", 0.0, 10.0, step=0.1, format="%.1f")
+ 
+                st.markdown("**Avaliação interna (0–10)**")
+                c8, c9, c10, c11 = st.columns(4)
+                cord_val   = c8.number_input("Cordialidade",      0.0, 10.0, step=0.1, format="%.1f")
+                res_val    = c9.number_input("Resolução",         0.0, 10.0, step=0.1, format="%.1f")
+                agi_val    = c10.number_input("Agilidade",        0.0, 10.0, step=0.1, format="%.1f")
+                script_val = c11.number_input("Aderência script", 0.0, 10.0, step=0.1, format="%.1f")
+ 
+                c12, c13 = st.columns(2)
+                feedback_val = c12.text_area("Pontos de melhoria", height=90)
+                positivos_val= c13.text_area("Pontos positivos",   height=90)
+                acao_val = st.text_input("Plano de ação / Desenvolvimento")
+ 
+                submit = st.form_submit_button("💾 Salvar avaliação")
+ 
+            if submit:
+                ev = {
+                    "id":      f"ev_{int(datetime.now().timestamp()*1000)}",
+                    "op_id":   op_sel_id,
+                    "mes":     mes_sel,
+                    "ciclo":   ciclo_sel,
+                    "mp":      mp_val,
+                    "tma":     tma_val,
+                    "fcr":     fcr_val,
+                    "csat":    csat_val,
+                    "cord":    cord_val,
+                    "res":     res_val,
+                    "agi":     agi_val,
+                    "script":  script_val,
+                    "feed":    feedback_val,
+                    "pos":     positivos_val,
+                    "acao":    acao_val,
+                    "criado":  datetime.now().isoformat(),
+                }
+                avaliacoes.append(ev)
+                save_avaliacoes(avaliacoes)
+                st.success(f"✅ Avaliação de {op_sel_nome} — {mes_sel} / {ciclo_sel} salva!")
+                st.rerun()
+ 
+    st.markdown("---")
+ 
+    # Filtros
+    c1, c2, c3 = st.columns(3)
+    op_filtro  = c1.selectbox("Operador", ["Todos"] + [o["nome"] for o in operadores], key="eval_op")
+    mes_filtro = c2.selectbox("Mês", ["Todos"] + sorted(set(e.get("mes","") for e in avaliacoes if e.get("mes")), reverse=True), key="eval_mes")
+    ciclo_filtro = c3.selectbox("Ciclo", ["Todos"] + CICLOS, key="eval_ciclo")
+ 
+    lista = avaliacoes
+    if op_filtro != "Todos":
+        op_id = next((o["id"] for o in operadores if o["nome"] == op_filtro), None)
+        lista = [e for e in lista if e["op_id"] == op_id]
+    if mes_filtro != "Todos":
+        lista = [e for e in lista if e.get("mes") == mes_filtro]
+    if ciclo_filtro != "Todos":
+        lista = [e for e in lista if e.get("ciclo") == ciclo_filtro]
+ 
+    lista = sorted(lista, key=lambda x: (x.get("mes",""), x.get("ciclo","")), reverse=True)
+ 
+    if not lista:
+        st.info("Nenhuma avaliação encontrada para os filtros selecionados.")
+        return
+ 
+    rows = []
+    for e in lista:
+        op = next((o for o in operadores if o["id"] == e["op_id"]), {})
+        iv = eval_int(e)
+        fn = eval_final(e, pesos)
+        rows.append({
+            "Operador":    op.get("nome","—"),
+            "Mês":         e.get("mes","—"),
+            "Ciclo":       e.get("ciclo","—"),
+            "MP":          f"{float(e['mp']):.1f}"   if e.get("mp") not in (None,"") else "—",
+            "TMA":         f"{float(e['tma']):.1f}"  if e.get("tma") else "—",
+            "FCR":         f"{float(e['fcr']):.1f}%" if e.get("fcr") else "—",
+            "CSAT":        f"{float(e['csat']):.1f}" if e.get("csat") else "—",
+            "Cord.":       f"{float(e['cord']):.1f}" if e.get("cord") else "—",
+            "Resol.":      f"{float(e['res']):.1f}"  if e.get("res") else "—",
+            "Agil.":       f"{float(e['agi']):.1f}"  if e.get("agi") else "—",
+            "Script":      f"{float(e['script']):.1f}" if e.get("script") else "—",
+            "Média int.":  f"{iv:.1f}"  if iv  is not None else "—",
+            "Nota final":  f"{fn:.1f}%" if fn  is not None else "—",
+            "Plano de ação": e.get("acao","—"),
+        })
+ 
+    df = pd.DataFrame(rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+ 
+    # Exportar CSV
+    csv = df.to_csv(index=False).encode("utf-8-sig")
+    st.download_button(
+        "⬇️ Exportar CSV",
+        data=csv,
+        file_name=f"leal_cx_avaliacoes_{datetime.now().strftime('%Y%m%d')}.csv",
+        mime="text/csv",
+    )
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA: METAS
+# ═══════════════════════════════════════════════════════════════════════════════
+def pagina_metas(user, readonly=False):
+    st.markdown("# 🏆 Metas e Bonificações")
+ 
+    faixas     = load_faixas()
+    operadores = load_operadores()
+    avaliacoes = load_avaliacoes()
+    pesos      = st.session_state.pesos
+ 
+    c_pesos, c_faixas = st.columns([1, 2])
+ 
+    with c_pesos:
+        st.markdown("### ⚖️ Pesos da nota final")
+        if not readonly:
+            pm  = st.slider("Peso Nota MP (%)",      0, 100, pesos.get("mp", 50), step=5)
+            pi  = st.slider("Peso Nota interna (%)", 0, 100, pesos.get("int", 50), step=5)
+            if pm + pi != 100:
+                st.warning(f"Soma atual: {pm+pi}% (deve ser 100%)")
+            else:
+                st.session_state.pesos = {"mp": pm, "int": pi}
+                st.success("Pesos: OK ✓")
+        else:
+            st.markdown(f"- Nota MP: **{pesos['mp']}%**")
+            st.markdown(f"- Nota interna: **{pesos['int']}%**")
+ 
+    with c_faixas:
+        st.markdown("### 🎯 Faixas de bonificação")
+        for i, f in enumerate(sorted(faixas, key=lambda x: x["min"])):
+            cc1, cc2, cc3, cc4 = st.columns([2, 1, 1, 1])
+            cc1.markdown(f"**{f['desc']}**")
+            cc2.markdown(f"{f['min']}% – {f['max']}%")
+            cc3.markdown(f"R$ {f['bonus']:.2f}")
+            if not readonly:
+                if cc4.button("🗑️", key=f"del_faixa_{f['id']}"):
+                    faixas = [x for x in faixas if x["id"] != f["id"]]
+                    save_faixas(faixas)
+                    st.rerun()
+ 
+        if not readonly:
+            st.markdown("---")
+            with st.form("form_faixa"):
+                c1, c2, c3, c4 = st.columns(4)
+                f_desc  = c1.text_input("Descrição", placeholder="Ex.: Faixa Ouro")
+                f_min   = c2.number_input("Nota mínima (%)", 0.0, 100.0, step=0.1)
+                f_max   = c3.number_input("Nota máxima (%)", 0.0, 100.0, step=0.1)
+                f_bonus = c4.number_input("Bônus (R$)", 0.0, step=0.01)
+                if st.form_submit_button("➕ Adicionar faixa"):
+                    if not f_desc.strip():
+                        st.error("Informe a descrição.")
+                    elif f_min > f_max:
+                        st.error("Nota mínima deve ser menor que a máxima.")
+                    else:
+                        faixas.append({"id": f"f_{int(datetime.now().timestamp()*1000)}", "desc": f_desc, "min": f_min, "max": f_max, "bonus": f_bonus})
+                        save_faixas(faixas)
+                        st.success("Faixa adicionada!")
+                        st.rerun()
+ 
+    st.markdown("---")
+    st.markdown("### 📊 Resultado do mês mais recente")
+ 
+    meses = sorted(set(e.get("mes","") for e in avaliacoes if e.get("mes")), reverse=True)
+    col_m, _ = st.columns([2, 4])
+    mes_sel = col_m.selectbox("Mês", meses if meses else ["—"], key="metas_mes")
+ 
+    ativos = [o for o in operadores if o.get("status") == "Ativo"]
+    rows = []
+    total_bonus = 0
+    for op in ativos:
+        op_evals = sorted(
+            [e for e in avaliacoes if e["op_id"] == op["id"] and e.get("mes") == mes_sel],
+            key=lambda x: x.get("ciclo",""), reverse=True
+        )
+        # Média de todos os ciclos do mês para a nota final
+        fn_vals = [eval_final(e, pesos) for e in op_evals]
+        fn_vals = [v for v in fn_vals if v is not None]
+        fn_med  = round(sum(fn_vals)/len(fn_vals), 2) if fn_vals else None
+        mp_vals = [float(e["mp"]) for e in op_evals if e.get("mp") not in (None,"")]
+        mp_med  = round(sum(mp_vals)/len(mp_vals), 2) if mp_vals else None
+        iv_vals = [eval_int(e) for e in op_evals]
+        iv_vals = [v for v in iv_vals if v is not None]
+        iv_med  = round(sum(iv_vals)/len(iv_vals), 2) if iv_vals else None
+        fx = get_faixa(fn_med, faixas)
+        bonus_v = fx["bonus"] if fx else 0
+        total_bonus += bonus_v
+        sit = "✅ Meta atingida" if fn_med and fn_med >= 80 else ("⚠️ Abaixo da meta" if fn_med is not None else "📭 Sem avaliação")
+        rows.append({
+            "Operador":      op["nome"],
+            "Cargo":         op.get("cargo","—"),
+            "Nota MP média": f"{mp_med:.1f}" if mp_med else "—",
+            "Média interna": f"{iv_med:.1f}" if iv_med else "—",
+            "Nota final":    f"{fn_med:.1f}%" if fn_med else "—",
+            "Faixa":         fx["desc"] if fx else "—",
+            "Bônus":         f"R$ {bonus_v:.2f}",
+            "Situação":      sit,
+        })
+ 
+    if rows:
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.markdown(f"<p style='color:#4CC9F0;font-weight:600;'>💰 Total de bonificação da equipe: R$ {total_bonus:.2f}</p>", unsafe_allow_html=True)
+ 
+        csv = df.to_csv(index=False).encode("utf-8-sig")
+        st.download_button("⬇️ Exportar metas CSV", data=csv,
+                           file_name=f"leal_cx_metas_{mes_sel}_{datetime.now().strftime('%Y%m%d')}.csv",
+                           mime="text/csv")
+    else:
+        st.info("Nenhuma avaliação para o mês selecionado.")
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA: EVOLUÇÃO
+# ═══════════════════════════════════════════════════════════════════════════════
+def pagina_evolucao(user, readonly=False):
+    st.markdown("# 📈 Evolução — Visão macrossistêmica")
+ 
+    operadores = load_operadores()
+    avaliacoes = load_avaliacoes()
+    pesos      = st.session_state.pesos
+ 
+    if not avaliacoes:
+        st.info("Registre avaliações para visualizar a evolução.")
+        return
+ 
+    meses = sorted(set(e.get("mes","") for e in avaliacoes if e.get("mes")))
+ 
+    c1, c2 = st.columns(2)
+    opcao  = c1.selectbox("Visualizar", ["Média da equipe"] + [o["nome"] for o in operadores])
+    metrica = c2.selectbox("Métrica", ["Nota final (%)", "Nota MP", "Média interna", "Cordialidade", "Resolução", "Agilidade"])
+ 
+    def get_val(e, met):
+        if met == "Nota final (%)": return eval_final(e, pesos)
+        if met == "Nota MP":        return float(e["mp"]) if e.get("mp") not in (None,"") else None
+        if met == "Média interna":  return eval_int(e)
+        if met == "Cordialidade":   return float(e["cord"]) if e.get("cord") else None
+        if met == "Resolução":      return float(e["res"])  if e.get("res") else None
+        if met == "Agilidade":      return float(e["agi"])  if e.get("agi") else None
+ 
+    # Gráfico de linha: fechamento por mês
+    data_linhas = {}
+    for mes in meses:
+        mes_evals = [e for e in avaliacoes if e.get("mes") == mes]
+        if opcao == "Média da equipe":
+            vals = [get_val(e, metrica) for e in mes_evals]
+        else:
+            op = next((o for o in operadores if o["nome"] == opcao), None)
+            vals = [get_val(e, metrica) for e in mes_evals if op and e["op_id"] == op["id"]]
+        vals = [v for v in vals if v is not None]
+        data_linhas[mes] = round(sum(vals)/len(vals), 2) if vals else None
+ 
+    df_line = pd.DataFrame({"Mês": list(data_linhas.keys()), metrica: list(data_linhas.values())}).dropna()
+    if not df_line.empty:
+        st.markdown(f"### 🌌 {opcao} — {metrica}")
+        st.line_chart(df_line.set_index("Mês"), color="#4CC9F0")
+ 
+    # Comparativo entre operadores no mês mais recente
+    st.markdown("---")
+    st.markdown("### 🧑‍🚀 Comparativo entre operadores — mês mais recente")
+    mes_rec = meses[-1] if meses else None
+    if mes_rec:
+        comp_rows = []
+        for op in operadores:
+            op_evals = [e for e in avaliacoes if e["op_id"] == op["id"] and e.get("mes") == mes_rec]
+            vals = [get_val(e, metrica) for e in op_evals]
+            vals = [v for v in vals if v is not None]
+            if vals:
+                comp_rows.append({"Operador": op["nome"], metrica: round(sum(vals)/len(vals),2)})
+        if comp_rows:
+            df_comp = pd.DataFrame(comp_rows).sort_values(metrica, ascending=False)
+            st.bar_chart(df_comp.set_index("Operador"), color="#4CC9F0")
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA: CONFIGURAÇÕES (só Comandante)
+# ═══════════════════════════════════════════════════════════════════════════════
+def pagina_configuracoes(user):
+    st.markdown("# ⚙️ Configurações")
+ 
+    # Gestão de usuários
+    st.markdown("### 👤 Usuários do sistema")
+    usuarios = load_usuarios()
+    for u in usuarios:
+        c1, c2, c3, c4 = st.columns([2, 2, 2, 1])
+        c1.markdown(f"**{u['nome']}**")
+        c2.markdown(f"`{u['login']}`")
+        c3.markdown(NIVEIS.get(u["nivel"], u["nivel"]))
+        if c4.button("🗑️", key=f"del_user_{u['login']}") and u["login"] != user["login"]:
+            usuarios = [x for x in usuarios if x["login"] != u["login"]]
+            save_usuarios(usuarios)
+            st.success("Usuário removido.")
+            st.rerun()
+ 
+    st.markdown("---")
+    st.markdown("### 🔒 Alterar senha")
+    with st.form("form_senha"):
+        nova_senha = st.text_input("Nova senha", type="password")
+        confirmar  = st.text_input("Confirmar senha", type="password")
+        if st.form_submit_button("💾 Salvar"):
+            if nova_senha != confirmar:
+                st.error("As senhas não coincidem.")
+            elif len(nova_senha) < 4:
+                st.error("Senha muito curta (mínimo 4 caracteres).")
+            else:
+                usuarios = load_usuarios()
+                for u in usuarios:
+                    if u["login"] == user["login"]:
+                        u["senha"] = nova_senha
+                save_usuarios(usuarios)
+                st.success("Senha alterada com sucesso!")
+ 
+    st.markdown("---")
+    st.markdown("### 💾 Backup completo")
+    operadores = load_operadores()
+    avaliacoes = load_avaliacoes()
+    faixas     = load_faixas()
+    backup = {
+        "exportado_em": datetime.now().isoformat(),
+        "operadores": operadores,
+        "avaliacoes": avaliacoes,
+        "faixas": faixas,
+        "pesos": st.session_state.pesos,
     }
-    fn = routes.get(page, page_dashboard)
-    fn()
-
-
-if __name__ == "__main__":
-    main()
+    st.download_button(
+        "⬇️ Baixar backup JSON",
+        data=json.dumps(backup, ensure_ascii=False, indent=2).encode("utf-8"),
+        file_name=f"leal_cx_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+        mime="application/json",
+    )
+ 
+    st.markdown("### 📥 Importar backup")
+    arquivo = st.file_uploader("Selecione um arquivo .json de backup", type=["json"])
+    if arquivo:
+        try:
+            dados = json.load(arquivo)
+            if st.button("⚠️ Confirmar importação (sobrescreve dados atuais)"):
+                if "operadores" in dados: save_operadores(dados["operadores"])
+                if "avaliacoes" in dados: save_avaliacoes(dados["avaliacoes"])
+                if "faixas"     in dados: save_faixas(dados["faixas"])
+                if "pesos"      in dados: st.session_state.pesos = dados["pesos"]
+                st.success("Dados importados com sucesso!")
+                st.rerun()
+        except Exception as ex:
+            st.error(f"Erro ao ler o arquivo: {ex}")
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# PORTAL DO OPERADOR (Tripulação)
+# ═══════════════════════════════════════════════════════════════════════════════
+def portal_tripulacao(user):
+    operadores = load_operadores()
+    avaliacoes = load_avaliacoes()
+    faixas     = load_faixas()
+    pesos      = st.session_state.pesos
+ 
+    op = next((o for o in operadores if o["id"] == user.get("op_id")), None)
+    if not op:
+        st.error("Operador não encontrado. Contate o administrador.")
+        return
+ 
+    st.markdown(f"""
+    <div style='text-align:center;padding:1rem 0;'>
+        <div style='font-size:40px;'>⭐</div>
+        <h1 style='color:#4CC9F0;'>Olá, {op['nome'].split()[0]}!</h1>
+        <p style='color:#E2E8F0;font-size:14px;'>{op.get('cargo','—')} · {tenure(op.get('adm'))} de empresa</p>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    op_evals = sorted([e for e in avaliacoes if e["op_id"] == op["id"]],
+                      key=lambda x: (x.get("mes",""), x.get("ciclo","")), reverse=True)
+ 
+    if not op_evals:
+        st.info("Você ainda não possui avaliações registradas.")
+        return
+ 
+    # Última avaliação
+    last = op_evals[0]
+    fn   = eval_final(last, pesos)
+    fx   = get_faixa(fn, faixas)
+    iv   = eval_int(last)
+    mp_v = float(last["mp"]) if last.get("mp") not in (None,"") else None
+ 
+    st.markdown("---")
+    st.markdown(f"### 🎯 Sua situação — {last.get('mes','—')} / {last.get('ciclo','—')}")
+ 
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Nota MP",      f"{mp_v:.1f}" if mp_v else "—")
+    c2.metric("Média interna", f"{iv:.1f}" if iv else "—")
+    c3.metric("Nota final",   f"{fn:.1f}%" if fn else "—")
+ 
+    if fn is not None:
+        pct = min(100, max(0, fn))
+        cor = "#4CC9F0" if fn >= 90 else "#FAC775" if fn >= 80 else "#F09595"
+        st.markdown(f"""
+        <div style='margin:1rem 0;'>
+            <div style='display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;'>
+                <span style='color:#E2E8F0;'>Progresso da meta</span>
+                <span style='color:{cor};font-weight:700;'>{fn:.1f}%</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.progress(pct / 100)
+        st.markdown(badge_faixa(fx), unsafe_allow_html=True)
+ 
+        faixas_sorted = sorted(faixas, key=lambda x: x["min"])
+        proxima = next((f for f in faixas_sorted if f["min"] > fn), None)
+        if proxima:
+            falta = round(proxima["min"] - fn, 2)
+            st.markdown(f"<p style='color:#4CC9F0;'>⭐ Faltam <strong>{falta} pontos</strong> para <strong>{proxima['desc']}</strong> (R$ {proxima['bonus']:.2f})</p>", unsafe_allow_html=True)
+        else:
+            st.markdown("<p style='color:#9FE1CB;font-weight:600;'>🏆 Você está na faixa máxima! Parabéns!</p>", unsafe_allow_html=True)
+ 
+    # Detalhes por critério
+    st.markdown("---")
+    st.markdown("### 📊 Critérios — avaliação interna")
+    c1, c2, c3, c4 = st.columns(4)
+    criterios = [("Cordialidade","cord"), ("Resolução","res"), ("Agilidade","agi"), ("Script","script")]
+    for col, (label, key) in zip([c1,c2,c3,c4], criterios):
+        val = float(last[key]) if last.get(key) not in (None,"",0) else None
+        col.metric(label, f"{val:.1f}" if val else "—")
+ 
+    # Feedback
+    if last.get("feed") or last.get("pos") or last.get("acao"):
+        st.markdown("---")
+        st.markdown("### 💬 Feedback da última avaliação")
+        if last.get("pos"):
+            st.markdown(f"""
+            <div style='background:rgba(159,225,203,0.1);border:1px solid rgba(159,225,203,0.3);border-radius:10px;padding:14px;margin-bottom:10px;'>
+                <p style='color:#9FE1CB;font-size:12px;font-weight:600;margin-bottom:6px;'>✅ PONTOS POSITIVOS</p>
+                <p style='color:#E2E8F0;font-size:14px;'>{last['pos']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        if last.get("feed"):
+            st.markdown(f"""
+            <div style='background:rgba(250,199,117,0.1);border:1px solid rgba(250,199,117,0.3);border-radius:10px;padding:14px;margin-bottom:10px;'>
+                <p style='color:#FAC775;font-size:12px;font-weight:600;margin-bottom:6px;'>⚠️ PONTOS DE MELHORIA</p>
+                <p style='color:#E2E8F0;font-size:14px;'>{last['feed']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+        if last.get("acao"):
+            st.markdown(f"""
+            <div style='background:rgba(76,201,240,0.1);border:1px solid rgba(76,201,240,0.3);border-radius:10px;padding:14px;'>
+                <p style='color:#4CC9F0;font-size:12px;font-weight:600;margin-bottom:6px;'>🚀 PLANO DE AÇÃO</p>
+                <p style='color:#E2E8F0;font-size:14px;'>{last['acao']}</p>
+            </div>
+            """, unsafe_allow_html=True)
+ 
+    # Histórico simplificado
+    st.markdown("---")
+    st.markdown("### 📅 Meu histórico")
+    hist_rows = []
+    for e in op_evals[:10]:
+        fn_h = eval_final(e, pesos)
+        fx_h = get_faixa(fn_h, faixas)
+        hist_rows.append({
+            "Mês":        e.get("mes","—"),
+            "Ciclo":      e.get("ciclo","—"),
+            "MP":         f"{float(e['mp']):.1f}" if e.get("mp") not in (None,"") else "—",
+            "Nota final": f"{fn_h:.1f}%" if fn_h else "—",
+            "Faixa":      fx_h["desc"] if fx_h else "—",
+            "Bônus":      f"R$ {fx_h['bonus']:.2f}" if fx_h else "R$ 0,00",
+        })
+    if hist_rows:
+        st.dataframe(pd.DataFrame(hist_rows), use_container_width=True, hide_index=True)
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+# ROTEADOR PRINCIPAL
+# ═══════════════════════════════════════════════════════════════════════════════
+if not st.session_state.logged_in:
+    tela_login()
+else:
+    user  = st.session_state.user
+    nivel = user["nivel"]
+ 
+    # Tripulação: portal individual
+    if nivel == "tripulacao":
+        render_sidebar(user)
+        portal_tripulacao(user)
+ 
+    # Demais perfis: sistema completo
+    else:
+        render_sidebar(user)
+        readonly = (nivel == "observador")
+        page = st.session_state.get("page", "Dashboard")
+ 
+        if page == "Dashboard":
+            pagina_dashboard(user, readonly)
+        elif page == "Operadores":
+            pagina_operadores(user, readonly)
+        elif page == "Avaliações":
+            pagina_avaliacoes(user, readonly)
+        elif page == "Metas":
+            pagina_metas(user, readonly)
+        elif page == "Evolução":
+            pagina_evolucao(user, readonly)
+        elif page == "Configurações" and nivel == "comandante":
+            pagina_configuracoes(user)
+            
