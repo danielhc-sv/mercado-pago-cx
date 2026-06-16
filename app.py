@@ -92,7 +92,7 @@ html, body, [class*="css"] {
 .badge-purple { background: rgba(220,184,255,0.12); color: #dcb8ff; border: 1px solid rgba(220,184,255,0.3); }
 .badge-gray   { background: rgba(255,255,255,0.08); color: #a09d9c; }
 
-/* Botões */
+/* Botões primários (fora da sidebar) */
 .stButton > button {
   background: #FFD700 !important; color: #1a1200 !important;
   font-family: 'Space Grotesk', sans-serif !important;
@@ -102,13 +102,29 @@ html, body, [class*="css"] {
 }
 .stButton > button:hover { box-shadow: 0 0 20px rgba(255,215,0,0.35) !important; }
 
-/* Botão secundário */
-.btn-secondary > button {
-  background: transparent !important; color: #a09d9c !important;
-  border: 1px solid rgba(255,255,255,0.08) !important;
+/* Botões da sidebar — override específico para que fiquem discretos */
+[data-testid="stSidebar"] .stButton > button {
+  background: transparent !important;
+  color: #a09d9c !important;
+  border: none !important;
+  border-radius: 6px !important;
+  text-align: left !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  padding: 10px 14px !important;
+  border-left: 3px solid transparent !important;
+  box-shadow: none !important;
+  transition: color 0.15s, background 0.15s !important;
 }
-.btn-secondary > button:hover { border-color: #a09d9c !important; color: #e5e2e1 !important; }
-
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: rgba(255,255,255,0.05) !important;
+  color: #e5e2e1 !important;
+  box-shadow: none !important;
+}
+/* Botão de logout diferenciado */
+[data-testid="stSidebar"] .stButton > button[kind="secondary"] {
+  color: #666 !important;
+}
 /* Inputs */
 .stTextInput > div > div > input,
 .stTextArea > div > div > textarea,
@@ -275,27 +291,32 @@ PLOTLY_LAYOUT = dict(
     margin=dict(l=0, r=0, t=20, b=0),
     xaxis=dict(gridcolor="rgba(255,255,255,0.04)", color="#555"),
     yaxis=dict(gridcolor="rgba(255,255,255,0.04)", color="#555"),
-    showlegend=False,
 )
 
 def line_chart(labels, datasets):
-    """datasets = list of {name, data, color}"""
     fig = go.Figure()
     for d in datasets:
         fig.add_trace(go.Scatter(
             x=labels, y=d["data"], name=d["name"],
-            line=dict(color=d["color"], width=2.5),
-            mode="lines", fill="none",
+            line=dict(color=d["color"], width=3, shape="spline", smoothing=1.3),
+            mode="lines",
+            fill="tozeroy",
+            fillcolor=d.get("fill", d["color"].replace(")", ",0.07)").replace("rgb","rgba") if "rgb" in d["color"] else d["color"] + "12"),
         ))
-    fig.update_layout(**PLOTLY_LAYOUT, showlegend=True,
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11)))
+    layout = dict(**PLOTLY_LAYOUT)
+    layout["showlegend"] = True
+    layout["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11),
+                             orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+    fig.update_layout(**layout)
     return fig
 
 def bar_chart(labels, values, colors=None):
     if not colors:
         colors = ["rgba(255,255,255,0.1)"] * len(values)
     fig = go.Figure(go.Bar(x=labels, y=values, marker_color=colors, marker_line_width=0))
-    fig.update_layout(**PLOTLY_LAYOUT)
+    layout = dict(**PLOTLY_LAYOUT)
+    layout["showlegend"] = False
+    fig.update_layout(**layout)
     fig.update_traces(marker_cornerradius=3)
     return fig
 
@@ -304,7 +325,9 @@ def donut_chart(values, colors, labels):
         values=values, labels=labels, marker_colors=colors,
         hole=0.72, textinfo="none",
     ))
-    fig.update_layout(**PLOTLY_LAYOUT)
+    layout = dict(**PLOTLY_LAYOUT)
+    layout["showlegend"] = False
+    fig.update_layout(**layout)
     return fig
 
 
@@ -379,55 +402,22 @@ def page_login():
 # ─────────────────────────────────────────
 # SIDEBAR
 # ─────────────────────────────────────────
-def render_sidebar():
-    user = st.session_state.user or {}
-    nome = user.get("nome","—")
-    initials = "".join(w[0] for w in nome.split()[:2]).upper()
-
-    with st.sidebar:
+for icon, label, pid in pages:
+    active_style = "border-left:3px solid #FFD700 !important; color:#FFD700 !important; background:rgba(255,215,0,0.06) !important;" if current == pid else ""
+    # Injeta estilo via key único por página
+    if current == pid:
         st.markdown(f"""
-        <div style="padding:0 0 20px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:20px">
-          <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#FFD700">CX Command</div>
-          <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#a09d9c">Quality Management</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        pages = [
-            ("⊞", "Dashboard",         "dashboard"),
-            ("👥", "Operadores",         "operadores"),
-            ("☑", "Avaliações",         "avaliacoes"),
-            ("⏱", "Banco de Erros",     "bancoerros"),
-            ("✉", "Entregar Feedback",  "feedback_op"),
-            ("✦", "IA de Qualidade",    "ia"),
-            ("📋", "Base QA",            "base_qa"),
-        ]
-        if user.get("perfil") == "admin":
-            pages.append(("⚙", "Configurações", "config"))
-
-        current = st.session_state.page
-        for icon, label, pid in pages:
-            active = "active" if current == pid else ""
-            if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
-                st.session_state.page = pid
-                st.rerun()
-
-        st.markdown("<div style='margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)'></div>", unsafe_allow_html=True)
-
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 4px">
-          <div style="width:36px;height:36px;border-radius:50%;background:#2a2a2a;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:#FFD700;flex-shrink:0">{initials}</div>
-          <div><div style="font-size:13px;font-weight:600;color:#e5e2e1">{nome.split()[0]}</div><div style="font-size:11px;color:#a09d9c">{perfil_label(user.get("perfil",""))}</div></div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        if st.button("⇥  Sair", use_container_width=True, key="btn_logout"):
-            st.session_state.logged_in = False
-            st.session_state.user = None
-            st.session_state.page = "dashboard"
-            st.rerun()
-
-
-# ─────────────────────────────────────────
+        <style>
+        div[data-testid="stSidebar"] div[data-testid="stVerticalBlock"] 
+        div:has(button[kind="secondary"]):nth-of-type({pages.index((icon,label,pid))+1}) button {{
+          border-left: 3px solid #FFD700 !important;
+          color: #FFD700 !important;
+          background: rgba(255,215,0,0.06) !important;
+        }}
+        </style>""", unsafe_allow_html=True)
+    if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
+        st.session_state.page = pid
+        st.rerun()# ─────────────────────────────────────────
 # PÁGINA: DASHBOARD
 # ─────────────────────────────────────────
 def page_dashboard():
@@ -454,7 +444,12 @@ def page_dashboard():
             {"name":"Mercado Pago","data":[65,68,65,70,72,70,74,78,80,83,88,92],"color":"#dcb8ff"},
             {"name":"Avaliação Interna","data":[72,75,72,78,82,80,84,88,90,92,95,96.5],"color":"#00e479"},
         ])
-        fig.update_layout(height=240, yaxis_range=[60,100], showlegend=True)
+        layout_dash = dict(**PLOTLY_LAYOUT)
+        layout_dash["showlegend"] = True
+        layout_dash["height"] = 240
+        layout_dash["yaxis_range"] = [60, 100]
+        layout_dash["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11))
+        fig.update_layout(**layout_dash)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -837,7 +832,10 @@ def page_bancoerros():
                 fig = px.pie(values=contagem.values, names=contagem.index,
                              color_discrete_sequence=["#FFD700","#dcb8ff","#FF3B3B","#00e479","#a09d9c"],
                              hole=0.6)
-                fig.update_layout(**PLOTLY_LAYOUT, height=300)
+                layout_pie = dict(**PLOTLY_LAYOUT)
+                layout_pie["showlegend"] = True
+                layout_pie["height"] = 300
+                fig.update_layout(**layout_pie)
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
             else:
                 st.markdown('<div class="cx-info" style="text-align:center;padding:32px">Sem dados suficientes para estatísticas.</div>', unsafe_allow_html=True)
