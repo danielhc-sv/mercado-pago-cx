@@ -45,7 +45,7 @@ html, body, [class*="css"] {
   color: #e5e2e1 !important;
 }
 
-/* Sidebar */
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
   background: #131313 !important;
   border-right: 1px solid rgba(255,255,255,0.08) !important;
@@ -53,11 +53,41 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] * { color: #a09d9c !important; }
 [data-testid="stSidebarNav"] { display: none; }
 
-/* Main area */
+/* Todos os botões da sidebar: estilo de nav-link neutro */
+[data-testid="stSidebar"] .stButton > button {
+  background: transparent !important;
+  color: #a09d9c !important;
+  border: none !important;
+  border-left: 3px solid transparent !important;
+  border-radius: 0 4px 4px 0 !important;
+  text-align: left !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  padding: 10px 14px !important;
+  box-shadow: none !important;
+  transition: color 0.15s, background 0.15s, border-color 0.15s !important;
+  width: 100% !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: rgba(255,255,255,0.05) !important;
+  color: #e5e2e1 !important;
+  border-left-color: rgba(255,255,255,0.15) !important;
+  box-shadow: none !important;
+}
+
+/* Botão de logout: mais discreto */
+[data-testid="stSidebar"] .stButton > button[key="btn_logout"],
+[data-testid="stSidebar"] div:last-child .stButton > button {
+  color: #555 !important;
+  font-size: 13px !important;
+}
+
+/* ── Área principal ── */
 [data-testid="stAppViewContainer"] > .main { background: #0e0e0e !important; }
 [data-testid="block-container"] { padding: 1.5rem 2rem !important; }
 
-/* Cards */
+/* ── Cards ── */
 .cx-card {
   background: #131313;
   border: 1px solid rgba(255,255,255,0.08);
@@ -70,8 +100,8 @@ html, body, [class*="css"] {
 .cx-card-green  { border-color: rgba(0,228,121,0.35); }
 .cx-card-red    { border-color: rgba(255,59,59,0.3); }
 
-/* KPI */
-.kpi-value { font-family: 'Space Grotesk', sans-serif; font-size: 2.4rem; font-weight: 700; line-height: 1; margin: 4px 0 8px; }
+/* ── KPI ── */
+.kpi-value  { font-family: 'Space Grotesk', sans-serif; font-size: 2.4rem; font-weight: 700; line-height: 1; margin: 4px 0 8px; }
 .kpi-yellow { color: #FFD700; }
 .kpi-purple { color: #dcb8ff; }
 .kpi-green  { color: #00e479; }
@@ -80,11 +110,11 @@ html, body, [class*="css"] {
 .kpi-delta-pos { color: #00e479; font-size: 12px; font-weight: 600; }
 .kpi-delta-neg { color: #ff6b6b; font-size: 12px; font-weight: 600; }
 
-/* Títulos de página */
+/* ── Títulos de página ── */
 .page-title { font-family: 'Space Grotesk', sans-serif; font-size: 1.8rem; font-weight: 700; color: #e5e2e1; margin-bottom: 4px; }
 .page-sub   { font-size: 14px; color: #a09d9c; margin-bottom: 20px; }
 
-/* Badge */
+/* ── Badge ── */
 .badge { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 3px 10px; border-radius: 9999px; }
 .badge-yellow { background: rgba(255,215,0,0.15); color: #FFD700; border: 1px solid rgba(255,215,0,0.3); }
 .badge-green  { background: rgba(0,228,121,0.12); color: #00e479; border: 1px solid rgba(0,228,121,0.3); }
@@ -92,7 +122,7 @@ html, body, [class*="css"] {
 .badge-purple { background: rgba(220,184,255,0.12); color: #dcb8ff; border: 1px solid rgba(220,184,255,0.3); }
 .badge-gray   { background: rgba(255,255,255,0.08); color: #a09d9c; }
 
-/* Botões */
+/* ── Botões globais (fora da sidebar) ── */
 .stButton > button {
   background: #FFD700 !important; color: #1a1200 !important;
   font-family: 'Space Grotesk', sans-serif !important;
@@ -109,7 +139,7 @@ html, body, [class*="css"] {
 }
 .btn-secondary > button:hover { border-color: #a09d9c !important; color: #e5e2e1 !important; }
 
-/* Inputs */
+/* ── Inputs ── */
 .stTextInput > div > div > input,
 .stTextArea > div > div > textarea,
 .stSelectbox > div > div,
@@ -126,6 +156,10 @@ html, body, [class*="css"] {
   box-shadow: 0 0 0 2px rgba(255,215,0,0.15) !important;
 }
 
+/* Checkbox (lembrar acesso) */
+.stCheckbox > label { color: #a09d9c !important; font-size: 13px !important; }
+.stCheckbox > label > span { color: #a09d9c !important; }
+
 /* Selectbox */
 .stSelectbox > div > div { background: #1c1b1b !important; color: #e5e2e1 !important; }
 .stSelectbox > div > div > div { color: #e5e2e1 !important; }
@@ -133,7 +167,7 @@ html, body, [class*="css"] {
 /* Slider */
 .stSlider > div > div > div { background: #FFD700 !important; }
 
-/* Tabs */
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] { background: #131313 !important; gap: 4px; }
 .stTabs [data-baseweb="tab"] {
   background: #131313 !important; color: #a09d9c !important;
@@ -146,31 +180,19 @@ html, body, [class*="css"] {
 }
 .stTabs [data-baseweb="tab-panel"] { background: transparent !important; padding-top: 20px !important; }
 
-/* Métricas */
+/* ── Métricas ── */
 [data-testid="stMetric"] { background: #131313; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 16px !important; }
 [data-testid="stMetricLabel"] { color: #a09d9c !important; font-size: 10px !important; letter-spacing: 0.1em !important; text-transform: uppercase !important; }
 [data-testid="stMetricValue"] { color: #FFD700 !important; font-family: 'Space Grotesk', sans-serif !important; }
 [data-testid="stMetricDelta"] svg { display: none; }
 
-/* Dataframe */
+/* ── Dataframe ── */
 [data-testid="stDataFrame"] { border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 8px !important; }
 
-/* Divider */
+/* ── Divider ── */
 hr { border-color: rgba(255,255,255,0.08) !important; }
 
-/* Sidebar nav items */
-.nav-link {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 16px; border-radius: 4px;
-  font-size: 14px; color: #a09d9c;
-  cursor: pointer; border-left: 3px solid transparent;
-  text-decoration: none; margin-bottom: 2px;
-  transition: all 0.15s;
-}
-.nav-link:hover { color: #e5e2e1; background: rgba(255,255,255,0.04); }
-.nav-link.active { color: #FFD700; background: rgba(255,215,0,0.06); border-left-color: #FFD700; }
-
-/* Chat IA */
+/* ── Chat IA ── */
 .ia-msg-user {
   background: rgba(255,215,0,0.07); border: 1px solid rgba(255,215,0,0.15);
   border-radius: 8px; padding: 12px 14px; margin: 8px 0; margin-left: 40px;
@@ -185,7 +207,7 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 .ia-role-user { color: #FFD700; }
 .ia-role-bot  { color: #dcb8ff; }
 
-/* Score ring customizado */
+/* ── Score display ── */
 .score-display {
   text-align: center; padding: 20px;
   background: #131313; border: 1px solid rgba(255,215,0,0.3);
@@ -193,12 +215,12 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 }
 .score-big { font-family: 'Space Grotesk', sans-serif; font-size: 3rem; font-weight: 700; color: #FFD700; }
 
-/* Info/success/error boxes */
+/* ── Info/success/error boxes ── */
 .cx-success { background: rgba(0,228,121,0.08); border: 1px solid rgba(0,228,121,0.25); border-radius: 4px; padding: 12px 14px; color: #00e479; }
 .cx-error   { background: rgba(255,59,59,0.08); border: 1px solid rgba(255,59,59,0.25); border-radius: 4px; padding: 12px 14px; color: #ff6b6b; }
 .cx-info    { background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.2); border-radius: 4px; padding: 12px 14px; color: #FFD700; }
 
-/* Ocultar elementos padrão do Streamlit */
+/* ── Ocultar elementos padrão do Streamlit ── */
 #MainMenu, footer, header { visibility: hidden; }
 .stDeployButton { display: none !important; }
 </style>
@@ -215,6 +237,8 @@ def init_session():
         "page": "dashboard",
         "ia_messages": [],
         "score_avaliacao": 8.0,
+        "remembered_user": "",
+        "remembered_pass": "",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -272,23 +296,34 @@ PLOTLY_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
     font=dict(color="#a09d9c", family="Inter"),
-    margin=dict(l=0, r=0, t=20, b=0),
-    xaxis=dict(gridcolor="rgba(255,255,255,0.04)", color="#555"),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.04)", color="#555"),
+    margin=dict(l=0, r=0, t=40, b=0),
+    xaxis=dict(gridcolor="rgba(0,0,0,0)", color="#555", tickfont=dict(size=11, color="#666")),
+    yaxis=dict(gridcolor="rgba(255,255,255,0.05)", color="#555", tickfont=dict(size=11, color="#555"), zeroline=False),
 )
 
 def line_chart(labels, datasets):
-    """datasets = list of {name, data, color}"""
+    """datasets = list of {name, data, color, fill}"""
     fig = go.Figure()
     for d in datasets:
+        fill_color = d.get("fill", "rgba(255,255,255,0.04)")
         fig.add_trace(go.Scatter(
-            x=labels, y=d["data"], name=d["name"],
-            line=dict(color=d["color"], width=2.5),
-            mode="lines", fill="none",
+            x=labels,
+            y=d["data"],
+            name=d["name"],
+            line=dict(color=d["color"], width=3, shape="spline", smoothing=1.3),
+            mode="lines",
+            fill="tozeroy",
+            fillcolor=fill_color,
         ))
     layout = dict(**PLOTLY_LAYOUT)
     layout["showlegend"] = True
-    layout["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11))
+    layout["legend"] = dict(
+        bgcolor="rgba(0,0,0,0)",
+        font=dict(color="#a09d9c", size=11),
+        orientation="h",
+        yanchor="bottom", y=1.02,
+        xanchor="right", x=1,
+    )
     fig.update_layout(**layout)
     return fig
 
@@ -328,8 +363,13 @@ def page_login():
         </div>
         """, unsafe_allow_html=True)
 
-        usuario = st.text_input("Usuário", placeholder="ex: admin", key="login_user")
-        senha   = st.text_input("Senha",   placeholder="••••••••", type="password", key="login_pass")
+        # Pré-preenche se houver credenciais lembradas
+        default_user = st.session_state.get("remembered_user", "")
+        default_pass = st.session_state.get("remembered_pass", "")
+
+        usuario = st.text_input("Usuário", value=default_user, placeholder="ex: admin", key="login_user")
+        senha   = st.text_input("Senha",   value=default_pass, placeholder="••••••••", type="password", key="login_pass")
+        lembrar = st.checkbox("Lembrar meu acesso", value=bool(default_user), key="login_lembrar")
 
         if st.button("ENTRAR", use_container_width=True):
             try:
@@ -346,6 +386,13 @@ def page_login():
                     user = match.iloc[0].to_dict()
                     st.session_state.logged_in = True
                     st.session_state.user = user
+                    # Persiste ou limpa credenciais conforme checkbox
+                    if lembrar:
+                        st.session_state["remembered_user"] = usuario.strip().lower()
+                        st.session_state["remembered_pass"] = senha
+                    else:
+                        st.session_state["remembered_user"] = ""
+                        st.session_state["remembered_pass"] = ""
                     st.rerun()
                 else:
                     st.markdown('<div class="cx-error">✕ Usuário ou senha incorretos.</div>', unsafe_allow_html=True)
@@ -410,8 +457,20 @@ def render_sidebar():
             pages.append(("⚙", "Configurações", "config"))
 
         current = st.session_state.page
+
         for icon, label, pid in pages:
-            active = "active" if current == pid else ""
+            # Injeta borda dourada no botão ativo via CSS dinâmico
+            if current == pid:
+                st.markdown(f"""
+                <style>
+                [data-testid="stSidebar"] div[data-testid="stVerticalBlock"]
+                div:has(button[key="nav_{pid}"]) button {{
+                  border-left: 3px solid #FFD700 !important;
+                  color: #FFD700 !important;
+                  background: rgba(255,215,0,0.06) !important;
+                }}
+                </style>""", unsafe_allow_html=True)
+
             if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
                 st.session_state.page = pid
                 st.rerun()
@@ -454,28 +513,44 @@ def page_dashboard():
         st.markdown('<div class="cx-card">', unsafe_allow_html=True)
         st.markdown('<div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;margin-bottom:14px">Evolução Mensal Quality</div>', unsafe_allow_html=True)
         meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+
+        # Gráfico com linhas suavizadas, preenchimento e legenda horizontal
         fig = line_chart(meses, [
-            {"name":"Média Geral","data":[70,72,68,75,80,78,82,85,88,90,93,95],"color":"#FFD700"},
-            {"name":"Mercado Pago","data":[65,68,65,70,72,70,74,78,80,83,88,92],"color":"#dcb8ff"},
-            {"name":"Avaliação Interna","data":[72,75,72,78,82,80,84,88,90,92,95,96.5],"color":"#00e479"},
+            {
+                "name": "Média Geral",
+                "data": [70,72,68,75,80,78,82,85,88,90,93,95],
+                "color": "#FFD700",
+                "fill": "rgba(255,215,0,0.08)",
+            },
+            {
+                "name": "Mercado Pago",
+                "data": [65,68,65,70,72,70,74,78,80,83,88,92],
+                "color": "#dcb8ff",
+                "fill": "rgba(220,184,255,0.06)",
+            },
+            {
+                "name": "Avaliação Interna",
+                "data": [72,75,72,78,82,80,84,88,90,92,95,96.5],
+                "color": "#00e479",
+                "fill": "rgba(0,228,121,0.05)",
+            },
         ])
-        layout_dash = dict(**PLOTLY_LAYOUT)
-        layout_dash["showlegend"] = True
-        layout_dash["height"] = 240
-        layout_dash["yaxis_range"] = [60, 100]
-        layout_dash["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11))
-        fig.update_layout(**layout_dash)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
+        fig.update_layout(
+            height=260,
+            yaxis_range=[55, 100],
+            margin=dict(l=0, r=0, t=40, b=0),
+        )
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_trends:
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:14px">🧭 Mapa de Tendências</div>', unsafe_allow_html=True)
         st.markdown("""
-        <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-left:3px solid #FFD700;border-radius:8px;padding:14px;margin-bottom:10px">
+        <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-left:3px solid #FFD700;border-radius:0 8px 8px 0;padding:14px;margin-bottom:10px">
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#FFD700;font-weight:700;margin-bottom:6px">⚠ Informação Crítica</div>
           <div style="font-size:12px;color:#a09d9c;line-height:1.5">Erros de informação incorreta aumentaram 18% neste ciclo.</div>
         </div>
-        <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-left:3px solid #00e479;border-radius:8px;padding:14px">
+        <div style="background:#1c1b1b;border:1px solid rgba(255,255,255,0.08);border-left:3px solid #00e479;border-radius:0 8px 8px 0;padding:14px">
           <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:#00e479;font-weight:700;margin-bottom:6px">▲ Tendência Positiva</div>
           <div style="font-size:12px;color:#a09d9c;line-height:1.5">Resolução na 1ª chamada subiu 6% nos últimos 15 dias.</div>
         </div>
@@ -547,7 +622,6 @@ def page_operadores():
         if df.empty:
             st.markdown('<div class="cx-info" style="text-align:center;padding:40px">Nenhum operador cadastrado ainda. Use a aba "Novo Operador" para adicionar.</div>', unsafe_allow_html=True)
         else:
-            # Filtros
             col_f1, col_f2 = st.columns([2, 1])
             with col_f1:
                 busca = st.text_input("🔍 Buscar operador", placeholder="Nome ou matrícula...", label_visibility="collapsed")
@@ -561,13 +635,11 @@ def page_operadores():
             if filtro_tier != "Todos":
                 df_show = df_show[df_show["tier"] == filtro_tier]
 
-            # Cards
             cols = st.columns(4)
             for i, (_, row) in enumerate(df_show.iterrows()):
                 with cols[i % 4]:
                     nota = float(row.get("nota_geral", 0) or 0)
                     cor = "#00e479" if nota >= 90 else "#FFD700" if nota >= 70 else "#ff6b6b"
-                    initials = "".join(w[0] for w in str(row.get("nome","?")).split()[:2]).upper()
                     st.markdown(f"""
                     <div class="cx-card" style="border-color:rgba(255,215,0,0.15)">
                       <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin-bottom:4px">{row.get("nome","—")}</div>
@@ -596,8 +668,8 @@ def page_operadores():
             mat_op = st.text_input("Matrícula *", key="op_mat")
             canal_op = st.selectbox("Canal Principal", ["Inbound","Outbound","Chat","E-mail"], key="op_canal")
         with c3:
-            nota_g = st.number_input("Nota Geral (%)", 0.0, 100.0, 0.0, key="op_ng")
-            nota_mp = st.number_input("Nota MP (%)", 0.0, 100.0, 0.0, key="op_mp")
+            nota_g   = st.number_input("Nota Geral (%)",   0.0, 100.0, 0.0, key="op_ng")
+            nota_mp  = st.number_input("Nota MP (%)",      0.0, 100.0, 0.0, key="op_mp")
             nota_int = st.number_input("Nota Interna (%)", 0.0, 100.0, 0.0, key="op_int")
 
         if st.button("Salvar Operador", use_container_width=True, key="btn_salvar_op"):
@@ -630,7 +702,6 @@ def page_avaliacoes():
         col_form, col_score = st.columns([2, 1])
 
         with col_form:
-            # Parâmetros
             st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">⚙ Parâmetros de Operação</div>', unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
             with c1:
@@ -645,13 +716,12 @@ def page_avaliacoes():
                 tipo_av = st.selectbox("Tipo", ["Interna","Mercado Pago","Avaliador Externo"], key="av_tipo")
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Critérios
             st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">☑ Critérios de Qualidade</div>', unsafe_allow_html=True)
             criterios = {
-                "saudacao":      ("Saudação Inicial e Identificação", 10),
-                "empatia":       ("Escuta Ativa e Empatia", 25),
-                "resolucao":     ("Resolução Técnica", 40),
-                "encerramento":  ("Encerramento e Próximos Passos", 25),
+                "saudacao":     ("Saudação Inicial e Identificação", 10),
+                "empatia":      ("Escuta Ativa e Empatia", 25),
+                "resolucao":    ("Resolução Técnica", 40),
+                "encerramento": ("Encerramento e Próximos Passos", 25),
             }
             scores = {}
             for key, (label, peso) in criterios.items():
@@ -663,12 +733,10 @@ def page_avaliacoes():
                 pct = scores[key] / 10
                 st.markdown(f'<div style="height:2px;background:#2a2a2a;border-radius:1px;margin-bottom:12px"><div style="height:100%;width:{pct*100:.0f}%;background:#FFD700;border-radius:1px"></div></div>', unsafe_allow_html=True)
 
-            # Nota calculada
             nota_calc = sum(scores[k] * criterios[k][1] / 100 for k in scores) * 10
             st.session_state.score_avaliacao = nota_calc / 10
             st.markdown('</div>', unsafe_allow_html=True)
 
-            # Parecer
             st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:12px">☰ Parecer do Analista</div>', unsafe_allow_html=True)
             parecer = st.text_area("Observação qualitativa", placeholder="Descreva sua observação sobre o atendimento...", height=120, key="av_parecer", label_visibility="collapsed")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -727,7 +795,6 @@ def page_avaliacoes():
             if df_av.empty:
                 st.markdown('<div class="cx-info" style="text-align:center;padding:40px">Nenhuma avaliação registrada ainda.</div>', unsafe_allow_html=True)
             else:
-                # Filtros
                 c1, c2 = st.columns(2)
                 with c1:
                     busca_av = st.text_input("🔍 Buscar operador", key="hist_busca", label_visibility="collapsed", placeholder="Buscar operador...")
@@ -776,7 +843,6 @@ def page_bancoerros():
         except Exception as e:
             st.error(str(e)); df_erros = pd.DataFrame()
 
-        # Categorias
         cats = [
             ("PROC-01","Procedimento","yellow","4.2/5.0","↘ −8%","pos"),
             ("COMM-02","Comunicação","purple","2.8/5.0","↗ +15%","neg"),
@@ -821,7 +887,7 @@ def page_bancoerros():
                 df_ops = db.load_operadores()
                 op_lista = df_ops["nome"].tolist() if not df_ops.empty else []
             except: op_lista = []
-            op_err = st.selectbox("Operador", ["—"] + op_lista, key="err_op")
+            op_err  = st.selectbox("Operador", ["—"] + op_lista, key="err_op")
             hora_err = st.text_input("Horário", value=datetime.now().strftime("%H:%M:%S"), key="err_hora")
         with c3:
             desc_err = st.text_area("Descrição do Erro *", height=100, key="err_desc")
@@ -831,7 +897,6 @@ def page_bancoerros():
                 st.markdown('<div class="cx-error">Descrição é obrigatória.</div>', unsafe_allow_html=True)
             else:
                 try:
-                    user = st.session_state.user or {}
                     db.save_erro({"horario":hora_err,"categoria":cat_err.split(" - ")[0],"descricao":desc_err,"operador":op_err,"severidade":sev_err,"status":"Aberto"})
                     st.markdown('<div class="cx-success">✓ Erro registrado no Google Sheets!</div>', unsafe_allow_html=True)
                     st.rerun()
@@ -868,7 +933,6 @@ def page_feedback_op():
     col_form, col_preview = st.columns([2, 1])
 
     with col_form:
-        # Seleção
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">👤 Operador</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -883,7 +947,6 @@ def page_feedback_op():
             tipo_fb = st.selectbox("Tipo de Feedback", ["Positivo","Corretivo","Desenvolvimento","Reconhecimento"], key="fb_tipo")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Critérios com estrelas
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">☑ Critérios Avaliados</div>', unsafe_allow_html=True)
         criterios_fb = {
             "Saudação e Identificação": ("saud", 10),
@@ -903,14 +966,12 @@ def page_feedback_op():
             st.markdown(f'<div style="font-size:11px;color:#a09d9c;margin-bottom:10px">{"★"*val}{"☆"*(5-val)} — {labels_stars[val]}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Mensagem
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.08)">✉ Mensagem ao Operador</div>', unsafe_allow_html=True)
-        positivo = st.text_area("Pontos Positivos", placeholder="O que o operador fez bem...", height=80, key="fb_pos")
-        melhoria = st.text_area("Pontos de Melhoria", placeholder="O que precisa ser ajustado...", height=80, key="fb_mel")
-        plano    = st.text_area("Plano de Ação", placeholder="Próximos passos concretos...", height=60, key="fb_pln")
+        positivo = st.text_area("Pontos Positivos",   placeholder="O que o operador fez bem...",      height=80, key="fb_pos")
+        melhoria = st.text_area("Pontos de Melhoria", placeholder="O que precisa ser ajustado...",    height=80, key="fb_mel")
+        plano    = st.text_area("Plano de Ação",      placeholder="Próximos passos concretos...",     height=60, key="fb_pln")
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Visibilidade
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:12px">👁 Visibilidade</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
         with c1: vis_op  = st.checkbox("Visível para o operador", value=True, key="fb_vis_op")
@@ -919,7 +980,6 @@ def page_feedback_op():
         st.markdown('</div>', unsafe_allow_html=True)
 
     with col_preview:
-        # Calcular nota
         total, peso_total = 0, 0
         for key, (val, peso) in star_scores.items():
             if val > 0:
@@ -947,7 +1007,6 @@ def page_feedback_op():
           <div style="height:6px;background:#2a2a2a;border-radius:3px"><div style="height:100%;width:{nota_fb}%;background:{cor_fb};border-radius:3px;transition:width 0.4s"></div></div>
         </div>""", unsafe_allow_html=True)
 
-        # Histórico
         st.markdown('<div class="cx-card" style="margin-top:14px"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Feedbacks Anteriores</div>', unsafe_allow_html=True)
         if op_fb != "Selecionar...":
             try:
@@ -1013,7 +1072,6 @@ def page_ia():
     col_main, col_side = st.columns([2, 1])
 
     with col_main:
-        # Diagnóstico fixo
         st.markdown("""
         <div class="cx-card">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
@@ -1043,10 +1101,8 @@ def page_ia():
           </div>
         </div>""", unsafe_allow_html=True)
 
-        # Chat IA
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;color:#dcb8ff;margin-bottom:16px">✦ Chat com a IA de Qualidade</div>', unsafe_allow_html=True)
 
-        # Renderizar histórico
         chat_container = st.container()
         with chat_container:
             if not st.session_state.ia_messages:
@@ -1058,13 +1114,11 @@ def page_ia():
                     content = msg["content"].replace("\n", "<br>").replace("**","<strong>",1)
                     st.markdown(f'<div class="ia-msg-assistant"><div class="ia-role ia-role-bot">✦ IA CX Command</div>{content}</div>', unsafe_allow_html=True)
 
-        # Quick buttons
-        st.markdown('<div style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0">', unsafe_allow_html=True)
         qcols = st.columns(4)
         quick_prompts = [
             ("📊 Problemas da semana", "Quais são os principais problemas de qualidade desta semana?"),
-            ("🎯 Plano de melhoria", "Gere um plano de melhoria para operadores com nota abaixo de 70%"),
-            ("🔮 Previsão de riscos", "Analise tendências de erro nos últimos 30 dias e preveja riscos"),
+            ("🎯 Plano de melhoria",   "Gere um plano de melhoria para operadores com nota abaixo de 70%"),
+            ("🔮 Previsão de riscos",  "Analise tendências de erro nos últimos 30 dias e preveja riscos"),
             ("⚠ Operadores em risco", "Quais operadores estão em risco de queda de performance?"),
         ]
         for i, (label, prompt) in enumerate(quick_prompts):
@@ -1076,7 +1130,6 @@ def page_ia():
                     st.session_state.ia_messages.append({"role":"assistant","content":resposta})
                     st.rerun()
 
-        # Input
         col_inp, col_send = st.columns([5, 1])
         with col_inp:
             user_msg = st.text_input("", placeholder="Faça uma pergunta sobre a operação...", key="ia_input", label_visibility="collapsed")
@@ -1143,7 +1196,7 @@ Dados atuais da operação:
 Responda em português, de forma objetiva e executiva. Use **negrito** para pontos críticos."""
 
         history = [{"role": m["role"], "content": m["content"]}
-                   for m in st.session_state.ia_messages[:-1]]  # sem a última (já adicionada)
+                   for m in st.session_state.ia_messages[:-1]]
 
         response = client.messages.create(
             model="claude-sonnet-4-6",
@@ -1171,7 +1224,7 @@ def page_base_qa():
             st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:6px">Matriz de Qualidade (PDF)</div><div style="font-size:13px;color:#a09d9c;margin-bottom:20px">Faça upload da sua matriz QA em PDF como referência central do sistema.</div>', unsafe_allow_html=True)
             pdf_file = st.file_uploader("Selecione o PDF da Matriz QA", type=["pdf"], key="matriz_upload")
             if pdf_file:
-                st.session_state["matriz_pdf"] = pdf_file.read()
+                st.session_state["matriz_pdf"]  = pdf_file.read()
                 st.session_state["matriz_nome"] = pdf_file.name
                 st.markdown(f'<div class="cx-success">✓ Matriz "{pdf_file.name}" carregada com sucesso!</div>', unsafe_allow_html=True)
                 st.download_button("⬇ Baixar Matriz", data=st.session_state["matriz_pdf"], file_name=pdf_file.name, mime="application/pdf")
@@ -1213,7 +1266,7 @@ def page_base_qa():
                     with st.spinner("Extraindo texto do .docx..."):
                         try:
                             result = mammoth.extract_raw_text(docx_file)
-                            texto = result.value
+                            texto  = result.value
                         except Exception as e:
                             texto = f"[Erro ao extrair: {e}]"
 
@@ -1234,7 +1287,7 @@ JSON esperado:
                     except:
                         dados = {}
 
-                    st.session_state["qa_resultado"] = dados
+                    st.session_state["qa_resultado"]   = dados
                     st.session_state["qa_texto_bruto"] = texto
 
             if "qa_resultado" in st.session_state:
@@ -1242,13 +1295,13 @@ JSON esperado:
                 st.markdown('<hr><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;color:#dcb8ff;margin:12px 0">✦ Resultado da Análise — Edite antes de salvar</div>', unsafe_allow_html=True)
 
                 c1, c2, c3 = st.columns(3)
-                with c1: nf  = st.number_input("Nota Final", 0.0, 100.0, float(dados.get("notaFinal") or 0), key="qa_nf")
-                with c2: ss  = st.number_input("Soft Skills", 0.0, 100.0, float(dados.get("softSkills") or 0), key="qa_ss")
-                with c3: tec = st.number_input("Técnico",     0.0, 100.0, float(dados.get("tecnico") or 0), key="qa_tec")
+                with c1: nf  = st.number_input("Nota Final",   0.0, 100.0, float(dados.get("notaFinal")  or 0), key="qa_nf")
+                with c2: ss  = st.number_input("Soft Skills",  0.0, 100.0, float(dados.get("softSkills") or 0), key="qa_ss")
+                with c3: tec = st.number_input("Técnico",      0.0, 100.0, float(dados.get("tecnico")    or 0), key="qa_tec")
 
-                acertos   = st.text_area("✓ Pontos Certos",      value=dados.get("acertos",""),   height=80, key="qa_ac")
-                erros     = st.text_area("✕ Pontos de Erro",     value=dados.get("erros",""),     height=80, key="qa_er")
-                melhorias = st.text_area("↗ Pontos de Melhoria", value=dados.get("melhorias",""), height=80, key="qa_me")
+                acertos   = st.text_area("✓ Pontos Certos",      value=dados.get("acertos",""),    height=80, key="qa_ac")
+                erros     = st.text_area("✕ Pontos de Erro",     value=dados.get("erros",""),      height=80, key="qa_er")
+                melhorias = st.text_area("↗ Pontos de Melhoria", value=dados.get("melhorias",""),  height=80, key="qa_me")
                 obs       = st.text_area("Observações Gerais",   value=dados.get("observacoes",""),height=80, key="qa_ob")
 
                 if st.button("💾 Salvar Avaliação", use_container_width=True, key="btn_salvar_qa"):
@@ -1276,14 +1329,14 @@ JSON esperado:
         with col_hist:
             st.markdown('<div class="cx-card"><div style="font-size:13px;font-weight:600;margin-bottom:12px">Avaliações Registradas</div>', unsafe_allow_html=True)
             try:
-                df_av2 = db.load_avaliacoes()
-                qa_avs = df_av2[df_av2["tipo"].str.contains("docx|QA", case=False, na=False)] if not df_av2.empty else pd.DataFrame()
+                df_av2  = db.load_avaliacoes()
+                qa_avs  = df_av2[df_av2["tipo"].str.contains("docx|QA", case=False, na=False)] if not df_av2.empty else pd.DataFrame()
                 if qa_avs.empty:
                     st.markdown('<div style="text-align:center;padding:28px 0;color:#a09d9c;font-size:13px">📭 Nenhuma avaliação ainda.</div>', unsafe_allow_html=True)
                 else:
                     for _, r in qa_avs.tail(10).iterrows():
-                        nota = r.get("nota_final","—")
-                        cor = score_color(nota)
+                        nota    = r.get("nota_final","—")
+                        cor     = score_color(nota)
                         cor_css = {"green":"#00e479","yellow":"#FFD700","red":"#ff6b6b","gray":"#a09d9c"}[cor]
                         st.markdown(f"""
                         <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04)">
@@ -1318,7 +1371,7 @@ def page_config():
                     st.markdown('<div style="text-align:center;padding:24px;color:#a09d9c">Nenhum usuário. Crie o primeiro ao lado.</div>', unsafe_allow_html=True)
                 else:
                     for _, u in df_users.iterrows():
-                        ativo = str(u.get("ativo","true")).lower() != "false"
+                        ativo  = str(u.get("ativo","true")).lower() != "false"
                         perfil = u.get("perfil","—")
                         badge_colors = {"admin":"red","gestor":"yellow","auditor":"green","operador":"gray"}
                         st.markdown(f"""
@@ -1363,8 +1416,8 @@ def page_config():
             st.markdown('<div class="cx-card" style="position:sticky;top:80px"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:16px">Novo Usuário</div>', unsafe_allow_html=True)
             f_nome   = st.text_input("Nome Completo *",    key="f_nome")
             f_user   = st.text_input("Usuário de Login *", key="f_user")
-            f_pass   = st.text_input("Senha *",            key="f_pass",   type="password")
-            f_perfil = st.selectbox("Perfil",              ["admin","gestor","auditor","operador"], key="f_perfil")
+            f_pass   = st.text_input("Senha *",            key="f_pass", type="password")
+            f_perfil = st.selectbox("Perfil", ["admin","gestor","auditor","operador"], key="f_perfil")
 
             if st.button("Salvar Usuário", use_container_width=True, key="btn_criar_user"):
                 if not f_nome or not f_user or not f_pass:
