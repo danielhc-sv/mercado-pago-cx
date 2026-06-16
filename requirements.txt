@@ -1,8 +1,7 @@
-streamlit==1.35.0
-gspread==6.1.2
-google-auth==2.29.0
-pandas==2.2.2
-plotly==5.22.0
-anthropic==0.28.0
-mammoth==1.8.0
-Pillow==10.3.0
+streamlit>=1.32.0
+gspread>=5.12.0
+google-auth>=2.27.0
+pandas>=2.0.0
+plotly>=5.18.0
+anthropic>=0.25.0
+mammoth>=1.6.0
