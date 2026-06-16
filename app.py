@@ -53,6 +53,16 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] * { color: #a09d9c !important; }
 [data-testid="stSidebarNav"] { display: none; }
 
+/* Garante que o botão nativo de colapso/reabrir a sidebar permaneça visível */
+button[data-testid="collapsedControl"],
+button[kind="header"],
+[data-testid="collapsedControl"] {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
 /* Todos os botões da sidebar: estilo de nav-link neutro */
 [data-testid="stSidebar"] .stButton > button {
   background: transparent !important;
@@ -363,7 +373,6 @@ def page_login():
         </div>
         """, unsafe_allow_html=True)
 
-        # Pré-preenche se houver credenciais lembradas
         default_user = st.session_state.get("remembered_user", "")
         default_pass = st.session_state.get("remembered_pass", "")
 
@@ -386,7 +395,6 @@ def page_login():
                     user = match.iloc[0].to_dict()
                     st.session_state.logged_in = True
                     st.session_state.user = user
-                    # Persiste ou limpa credenciais conforme checkbox
                     if lembrar:
                         st.session_state["remembered_user"] = usuario.strip().lower()
                         st.session_state["remembered_pass"] = senha
@@ -459,7 +467,6 @@ def render_sidebar():
         current = st.session_state.page
 
         for icon, label, pid in pages:
-            # Injeta borda dourada no botão ativo via CSS dinâmico
             if current == pid:
                 st.markdown(f"""
                 <style>
@@ -498,7 +505,6 @@ def page_dashboard():
     section_title("Dashboard")
     section_sub("Visão geral da qualidade operacional em tempo real.")
 
-    # KPIs
     c1, c2, c3, c4 = st.columns(4)
     with c1: kpi_card("Nota Média Geral", "95.0", "▲ 4.2%", "yellow")
     with c2: kpi_card("Nota Mercado Pago", "92.1", "▲ 1.8%", "purple")
@@ -507,39 +513,17 @@ def page_dashboard():
 
     st.markdown("---")
 
-    # Gráfico principal + Tendências
     col_chart, col_trends = st.columns([2, 1])
     with col_chart:
         st.markdown('<div class="cx-card">', unsafe_allow_html=True)
         st.markdown('<div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;margin-bottom:14px">Evolução Mensal Quality</div>', unsafe_allow_html=True)
         meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
-
-        # Gráfico com linhas suavizadas, preenchimento e legenda horizontal
         fig = line_chart(meses, [
-            {
-                "name": "Média Geral",
-                "data": [70,72,68,75,80,78,82,85,88,90,93,95],
-                "color": "#FFD700",
-                "fill": "rgba(255,215,0,0.08)",
-            },
-            {
-                "name": "Mercado Pago",
-                "data": [65,68,65,70,72,70,74,78,80,83,88,92],
-                "color": "#dcb8ff",
-                "fill": "rgba(220,184,255,0.06)",
-            },
-            {
-                "name": "Avaliação Interna",
-                "data": [72,75,72,78,82,80,84,88,90,92,95,96.5],
-                "color": "#00e479",
-                "fill": "rgba(0,228,121,0.05)",
-            },
+            {"name": "Média Geral",       "data": [70,72,68,75,80,78,82,85,88,90,93,95],      "color": "#FFD700",  "fill": "rgba(255,215,0,0.08)"},
+            {"name": "Mercado Pago",      "data": [65,68,65,70,72,70,74,78,80,83,88,92],      "color": "#dcb8ff",  "fill": "rgba(220,184,255,0.06)"},
+            {"name": "Avaliação Interna", "data": [72,75,72,78,82,80,84,88,90,92,95,96.5],    "color": "#00e479",  "fill": "rgba(0,228,121,0.05)"},
         ])
-        fig.update_layout(
-            height=260,
-            yaxis_range=[55, 100],
-            margin=dict(l=0, r=0, t=40, b=0),
-        )
+        fig.update_layout(height=260, yaxis_range=[55, 100], margin=dict(l=0, r=0, t=40, b=0))
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -558,7 +542,6 @@ def page_dashboard():
 
     st.markdown("---")
 
-    # Top operadores + status
     col_ops, col_status = st.columns([2, 1])
     with col_ops:
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:14px">Operadores em Destaque</div>', unsafe_allow_html=True)
@@ -1270,14 +1253,42 @@ def page_base_qa():
                         except Exception as e:
                             texto = f"[Erro ao extrair: {e}]"
 
-                    with st.spinner("IA analisando avaliação..."):
-                        prompt = f"""Analise este documento de avaliação QA e retorne SOMENTE JSON válido (sem markdown):
+                    with st.spinner("IA analisando avaliação — extraindo todos os critérios..."):
+                        # Limite ampliado para 8000 chars; prompt preciso para não omitir critérios
+                        texto_truncado = texto[:8000]
+                        prompt = f"""Você é um extrator de dados de documentos de avaliação de qualidade (QA) de call center.
+
+Leia o documento abaixo e extraia TODAS as informações de avaliação presentes.
+Retorne SOMENTE um JSON válido, sem markdown, sem texto antes ou depois.
+
+Regras:
+- Extraia TODOS os critérios de avaliação encontrados no documento, sem omitir nenhum.
+- Para cada critério, extraia o nome exato, a nota recebida e o peso (se disponível).
+- Se uma nota estiver em escala diferente de 0-10, converta proporcionalmente para 0-10.
+- Se não encontrar um campo, use null (não invente valores).
+- O campo "acertos" deve conter pontos positivos mencionados no documento.
+- O campo "erros" deve conter falhas ou pontos negativos mencionados.
+- O campo "melhorias" deve conter sugestões de desenvolvimento mencionadas.
+- O campo "observacoes" deve conter quaisquer outros comentários do avaliador.
+- "notaFinal" deve ser a nota geral final do documento (escala 0-100).
+- "softSkills" e "tecnico" devem ser extraídos se o documento os mencionar separadamente (escala 0-100).
 
 DOCUMENTO:
-{texto[:4000]}
+{texto_truncado}
 
-JSON esperado:
-{{"notaFinal":null,"softSkills":null,"tecnico":null,"criterios":[{{"nome":"","nota":null,"peso":""}}],"acertos":"","erros":"","melhorias":"","observacoes":""}}"""
+Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
+{{
+  "notaFinal": null,
+  "softSkills": null,
+  "tecnico": null,
+  "criterios": [
+    {{"nome": "Nome exato do critério", "nota": null, "peso": "ex: 20%", "observacao": ""}}
+  ],
+  "acertos": "",
+  "erros": "",
+  "melhorias": "",
+  "observacoes": ""
+}}"""
                         resposta_ia = chamar_claude(prompt)
 
                     try:
@@ -1299,6 +1310,44 @@ JSON esperado:
                 with c2: ss  = st.number_input("Soft Skills",  0.0, 100.0, float(dados.get("softSkills") or 0), key="qa_ss")
                 with c3: tec = st.number_input("Técnico",      0.0, 100.0, float(dados.get("tecnico")    or 0), key="qa_tec")
 
+                # Exibe TODOS os critérios extraídos, editáveis
+                criterios_extraidos = dados.get("criterios", [])
+                if criterios_extraidos:
+                    st.markdown("""
+                    <div style="font-size:13px;font-weight:600;color:#a09d9c;margin:14px 0 8px;
+                                text-transform:uppercase;letter-spacing:0.08em;
+                                padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)">
+                      Critérios Extraídos
+                    </div>""", unsafe_allow_html=True)
+                    for i, crit in enumerate(criterios_extraidos):
+                        cc1, cc2, cc3 = st.columns([3, 1, 1])
+                        with cc1:
+                            st.text_input(
+                                f"Critério {i+1}",
+                                value=crit.get("nome", ""),
+                                key=f"qa_crit_nome_{i}"
+                            )
+                        with cc2:
+                            nota_raw = crit.get("nota")
+                            nota_val = float(nota_raw) if nota_raw is not None else 0.0
+                            st.number_input(
+                                "Nota (0-10)",
+                                min_value=0.0, max_value=10.0,
+                                value=min(nota_val, 10.0),
+                                step=0.1,
+                                key=f"qa_crit_nota_{i}"
+                            )
+                        with cc3:
+                            st.text_input(
+                                "Peso",
+                                value=crit.get("peso", ""),
+                                key=f"qa_crit_peso_{i}"
+                            )
+                        # Observação do critério, se houver
+                        obs_crit = crit.get("observacao", "")
+                        if obs_crit:
+                            st.markdown(f'<div style="font-size:11px;color:#a09d9c;margin:-8px 0 10px;font-style:italic">{obs_crit}</div>', unsafe_allow_html=True)
+
                 acertos   = st.text_area("✓ Pontos Certos",      value=dados.get("acertos",""),    height=80, key="qa_ac")
                 erros     = st.text_area("✕ Pontos de Erro",     value=dados.get("erros",""),      height=80, key="qa_er")
                 melhorias = st.text_area("↗ Pontos de Melhoria", value=dados.get("melhorias",""),  height=80, key="qa_me")
@@ -1307,6 +1356,26 @@ JSON esperado:
                 if st.button("💾 Salvar Avaliação", use_container_width=True, key="btn_salvar_qa"):
                     try:
                         user = st.session_state.user or {}
+
+                        # Monta string com todos os critérios para salvar no campo parecer
+                        criterios_str = ""
+                        if criterios_extraidos:
+                            linhas = []
+                            for i, crit in enumerate(criterios_extraidos):
+                                nome_c = st.session_state.get(f"qa_crit_nome_{i}", crit.get("nome",""))
+                                nota_c = st.session_state.get(f"qa_crit_nota_{i}", 0.0)
+                                peso_c = st.session_state.get(f"qa_crit_peso_{i}", crit.get("peso",""))
+                                linhas.append(f"• {nome_c} | Nota: {nota_c} | Peso: {peso_c}")
+                            criterios_str = "CRITÉRIOS:\n" + "\n".join(linhas) + "\n\n"
+
+                        parecer_completo = (
+                            f"{criterios_str}"
+                            f"Acertos: {acertos}\n"
+                            f"Erros: {erros}\n"
+                            f"Melhorias: {melhorias}\n"
+                            f"Obs: {obs}"
+                        )
+
                         db.save_avaliacao({
                             "operador": op_av,
                             "data_chamada": periodo_av,
@@ -1315,7 +1384,7 @@ JSON esperado:
                             "soft_skills": ss,
                             "tecnico": tec,
                             "saudacao": "", "empatia": "", "resolucao": "", "encerramento": "",
-                            "parecer": f"Acertos: {acertos}\nErros: {erros}\nMelhorias: {melhorias}\nObs: {obs}",
+                            "parecer": parecer_completo,
                             "auditor": user.get("nome","Sistema"),
                         })
                         del st.session_state["qa_resultado"]
