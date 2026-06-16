@@ -132,15 +132,17 @@ button[kind="header"],
 .badge-purple { background: rgba(220,184,255,0.12); color: #dcb8ff; border: 1px solid rgba(220,184,255,0.3); }
 .badge-gray   { background: rgba(255,255,255,0.08); color: #a09d9c; }
 
-/* ── Botões globais (fora da sidebar) ── */
-.stButton > button {
+/* ── CORREÇÃO 1: Botões globais APENAS na área principal (não afeta sidebar) ── */
+[data-testid="stAppViewContainer"] .stButton > button {
   background: #FFD700 !important; color: #1a1200 !important;
   font-family: 'Space Grotesk', sans-serif !important;
   font-weight: 700 !important; border: none !important;
   border-radius: 4px !important;
   transition: box-shadow 0.2s !important;
 }
-.stButton > button:hover { box-shadow: 0 0 20px rgba(255,215,0,0.35) !important; }
+[data-testid="stAppViewContainer"] .stButton > button:hover {
+  box-shadow: 0 0 20px rgba(255,215,0,0.35) !important;
+}
 
 /* Botão secundário */
 .btn-secondary > button {
@@ -466,21 +468,21 @@ def render_sidebar():
 
         current = st.session_state.page
 
+        # CORREÇÃO 2: destaque da página ativa via wrapper <div> inline,
+        # sem injetar <style> por loop (evita conflitos de especificidade a cada rerun)
         for icon, label, pid in pages:
-            if current == pid:
-                st.markdown(f"""
-                <style>
-                [data-testid="stSidebar"] div[data-testid="stVerticalBlock"]
-                div:has(button[key="nav_{pid}"]) button {{
-                  border-left: 3px solid #FFD700 !important;
-                  color: #FFD700 !important;
-                  background: rgba(255,215,0,0.06) !important;
-                }}
-                </style>""", unsafe_allow_html=True)
-
+            is_active = (current == pid)
+            if is_active:
+                st.markdown(
+                    '<div style="border-left:3px solid #FFD700;background:rgba(255,215,0,0.06);'
+                    'border-radius:0 4px 4px 0;margin-bottom:2px">',
+                    unsafe_allow_html=True
+                )
             if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
                 st.session_state.page = pid
                 st.rerun()
+            if is_active:
+                st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<div style='margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)'></div>", unsafe_allow_html=True)
 
@@ -1254,7 +1256,6 @@ def page_base_qa():
                             texto = f"[Erro ao extrair: {e}]"
 
                     with st.spinner("IA analisando avaliação — extraindo todos os critérios..."):
-                        # Limite ampliado para 8000 chars; prompt preciso para não omitir critérios
                         texto_truncado = texto[:8000]
                         prompt = f"""Você é um extrator de dados de documentos de avaliação de qualidade (QA) de call center.
 
@@ -1310,7 +1311,6 @@ Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
                 with c2: ss  = st.number_input("Soft Skills",  0.0, 100.0, float(dados.get("softSkills") or 0), key="qa_ss")
                 with c3: tec = st.number_input("Técnico",      0.0, 100.0, float(dados.get("tecnico")    or 0), key="qa_tec")
 
-                # Exibe TODOS os critérios extraídos, editáveis
                 criterios_extraidos = dados.get("criterios", [])
                 if criterios_extraidos:
                     st.markdown("""
@@ -1343,7 +1343,6 @@ Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
                                 value=crit.get("peso", ""),
                                 key=f"qa_crit_peso_{i}"
                             )
-                        # Observação do critério, se houver
                         obs_crit = crit.get("observacao", "")
                         if obs_crit:
                             st.markdown(f'<div style="font-size:11px;color:#a09d9c;margin:-8px 0 10px;font-style:italic">{obs_crit}</div>', unsafe_allow_html=True)
@@ -1357,7 +1356,6 @@ Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
                     try:
                         user = st.session_state.user or {}
 
-                        # Monta string com todos os critérios para salvar no campo parecer
                         criterios_str = ""
                         if criterios_extraidos:
                             linhas = []
