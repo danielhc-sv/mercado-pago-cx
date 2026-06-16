@@ -13,6 +13,9 @@ import io
 
 import sheets as db
 
+# ─────────────────────────────────────────
+# CONFIGURAÇÃO DA PÁGINA
+# ─────────────────────────────────────────
 st.set_page_config(
     page_title="CX Command — Quality Management",
     page_icon="⊞",
@@ -20,6 +23,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ─────────────────────────────────────────
+# CSS GLOBAL
+# ─────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
@@ -197,6 +203,11 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 .stDeployButton { display: none !important; }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────
 def init_session():
     defaults = {
         "logged_in": False,
@@ -211,6 +222,10 @@ def init_session():
 
 init_session()
 
+
+# ─────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────
 def perfil_label(p):
     return {"admin":"Administrador","gestor":"Gestor CX","auditor":"Auditor","operador":"Operador"}.get(p, p)
 
@@ -249,6 +264,10 @@ def kpi_card(label, value, delta=None, color="yellow"):
       {delta_html}
     </div>""", unsafe_allow_html=True)
 
+
+# ─────────────────────────────────────────
+# PLOTLY THEME
+# ─────────────────────────────────────────
 PLOTLY_LAYOUT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
@@ -256,7 +275,6 @@ PLOTLY_LAYOUT = dict(
     margin=dict(l=0, r=0, t=20, b=0),
     xaxis=dict(gridcolor="rgba(255,255,255,0.04)", color="#555"),
     yaxis=dict(gridcolor="rgba(255,255,255,0.04)", color="#555"),
-    showlegend=False,
 )
 
 def line_chart(labels, datasets):
@@ -268,15 +286,19 @@ def line_chart(labels, datasets):
             line=dict(color=d["color"], width=2.5),
             mode="lines", fill="none",
         ))
-    fig.update_layout(**PLOTLY_LAYOUT, showlegend=True,
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11)))
+    layout = dict(**PLOTLY_LAYOUT)
+    layout["showlegend"] = True
+    layout["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11))
+    fig.update_layout(**layout)
     return fig
 
 def bar_chart(labels, values, colors=None):
     if not colors:
         colors = ["rgba(255,255,255,0.1)"] * len(values)
     fig = go.Figure(go.Bar(x=labels, y=values, marker_color=colors, marker_line_width=0))
-    fig.update_layout(**PLOTLY_LAYOUT)
+    layout = dict(**PLOTLY_LAYOUT)
+    layout["showlegend"] = False
+    fig.update_layout(**layout)
     fig.update_traces(marker_cornerradius=3)
     return fig
 
@@ -285,11 +307,15 @@ def donut_chart(values, colors, labels):
         values=values, labels=labels, marker_colors=colors,
         hole=0.72, textinfo="none",
     ))
-    fig.update_layout(**PLOTLY_LAYOUT)
+    layout = dict(**PLOTLY_LAYOUT)
+    layout["showlegend"] = False
+    fig.update_layout(**layout)
     return fig
 
 
-
+# ─────────────────────────────────────────
+# LOGIN
+# ─────────────────────────────────────────
 def page_login():
     col_left, col_right = st.columns([1, 1])
     with col_left:
@@ -353,6 +379,11 @@ def page_login():
           Transforme cada feedback em uma oportunidade de ouro.
         </div>
         """, unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────
+# SIDEBAR
+# ─────────────────────────────────────────
 def render_sidebar():
     user = st.session_state.user or {}
     nome = user.get("nome","—")
@@ -428,7 +459,12 @@ def page_dashboard():
             {"name":"Mercado Pago","data":[65,68,65,70,72,70,74,78,80,83,88,92],"color":"#dcb8ff"},
             {"name":"Avaliação Interna","data":[72,75,72,78,82,80,84,88,90,92,95,96.5],"color":"#00e479"},
         ])
-        fig.update_layout(height=240, yaxis_range=[60,100], showlegend=True)
+        layout_dash = dict(**PLOTLY_LAYOUT)
+        layout_dash["showlegend"] = True
+        layout_dash["height"] = 240
+        layout_dash["yaxis_range"] = [60, 100]
+        layout_dash["legend"] = dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#a09d9c", size=11))
+        fig.update_layout(**layout_dash)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -811,7 +847,10 @@ def page_bancoerros():
                 fig = px.pie(values=contagem.values, names=contagem.index,
                              color_discrete_sequence=["#FFD700","#dcb8ff","#FF3B3B","#00e479","#a09d9c"],
                              hole=0.6)
-                fig.update_layout(**PLOTLY_LAYOUT, height=300)
+                layout_pie = dict(**PLOTLY_LAYOUT)
+                layout_pie["showlegend"] = True
+                layout_pie["height"] = 300
+                fig.update_layout(**layout_pie)
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
             else:
                 st.markdown('<div class="cx-info" style="text-align:center;padding:32px">Sem dados suficientes para estatísticas.</div>', unsafe_allow_html=True)
@@ -1359,6 +1398,11 @@ def page_config():
             ✓ usuarios &nbsp; ✓ operadores &nbsp; ✓ avaliacoes &nbsp; ✓ feedbacks &nbsp; ✓ banco_erros
           </div>
         </div>""", unsafe_allow_html=True)
+
+
+# ─────────────────────────────────────────
+# ROTEADOR PRINCIPAL
+# ─────────────────────────────────────────
 def main():
     if not st.session_state.logged_in:
         page_login()
