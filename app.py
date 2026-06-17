@@ -53,21 +53,43 @@ html, body, [class*="css"] {
 [data-testid="stSidebar"] * { color: #a09d9c !important; }
 [data-testid="stSidebarNav"] { display: none; }
 
-/* Garante que o botão nativo de colapso/reabrir a sidebar permaneça visível */
-button[data-testid="collapsedControl"],
-button[kind="header"],
-[data-testid="collapsedControl"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
+/* Todos os botões da sidebar: nav neutro */
+[data-testid="stSidebar"] .stButton > button {
+  background: transparent !important;
+  color: #a09d9c !important;
+  border: none !important;
+  border-left: 3px solid transparent !important;
+  border-radius: 0 6px 6px 0 !important;
+  text-align: left !important;
+  justify-content: flex-start !important;
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  padding: 10px 14px !important;
+  box-shadow: none !important;
+  transition: color 0.15s, background 0.15s, border-color 0.15s !important;
+  width: 100% !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+  background: rgba(255,255,255,0.05) !important;
+  color: #e5e2e1 !important;
+  border-left-color: rgba(255,255,255,0.15) !important;
+  box-shadow: none !important;
+}
+[data-testid="stSidebar"] .stButton > button:focus {
+  box-shadow: none !important;
+  outline: none !important;
 }
 
-/* Botão de logout: mais discreto */
-[data-testid="stSidebar"] .stButton > button[key="btn_logout"],
-[data-testid="stSidebar"] div:last-child .stButton > button {
-  color: #555 !important;
-  font-size: 13px !important;
+/* Item ativo: classe .nav-active injetada via markdown wrapper */
+[data-testid="stSidebar"] .nav-active + div .stButton > button,
+[data-testid="stSidebar"] .nav-active ~ div .stButton > button {
+  /* fallback — o CSS real fica no bloco nav-active abaixo */
+}
+[data-testid="stSidebar"] .nav-active-btn button {
+  border-left: 3px solid #FFD700 !important;
+  color: #FFD700 !important;
+  background: rgba(255,215,0,0.07) !important;
 }
 
 /* ── Área principal ── */
@@ -109,41 +131,16 @@ button[kind="header"],
 .badge-purple { background: rgba(220,184,255,0.12); color: #dcb8ff; border: 1px solid rgba(220,184,255,0.3); }
 .badge-gray   { background: rgba(255,255,255,0.08); color: #a09d9c; }
 
-/* ── Botões fora da sidebar (amarelo primário) ── */
-section.main .stButton > button,
-[data-testid="stAppViewContainer"] .stButton > button {
+/* ── Botões globais (fora da sidebar) ── */
+section.main .stButton > button {
   background: #FFD700 !important; color: #1a1200 !important;
   font-family: 'Space Grotesk', sans-serif !important;
   font-weight: 700 !important; border: none !important;
   border-radius: 4px !important;
   transition: box-shadow 0.2s !important;
 }
-section.main .stButton > button:hover,
-[data-testid="stAppViewContainer"] .stButton > button:hover {
+section.main .stButton > button:hover {
   box-shadow: 0 0 20px rgba(255,215,0,0.35) !important;
-}
-
-/* ── Botões da sidebar (nav neutro) — vem DEPOIS do bloco global para garantir precedência na cascata ── */
-[data-testid="stSidebar"] .stButton > button {
-  background: transparent !important;
-  color: #a09d9c !important;
-  border: none !important;
-  border-left: 3px solid transparent !important;
-  border-radius: 0 4px 4px 0 !important;
-  text-align: left !important;
-  font-family: 'Inter', sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
-  padding: 10px 14px !important;
-  box-shadow: none !important;
-  width: 100% !important;
-  transition: color 0.15s, background 0.15s, border-color 0.15s !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-  background: rgba(255,255,255,0.05) !important;
-  color: #e5e2e1 !important;
-  border-left-color: rgba(255,255,255,0.15) !important;
-  box-shadow: none !important;
 }
 
 /* Botão secundário */
@@ -377,6 +374,7 @@ def page_login():
         </div>
         """, unsafe_allow_html=True)
 
+        # Pré-preenche se houver credenciais lembradas
         default_user = st.session_state.get("remembered_user", "")
         default_pass = st.session_state.get("remembered_pass", "")
 
@@ -399,6 +397,7 @@ def page_login():
                     user = match.iloc[0].to_dict()
                     st.session_state.logged_in = True
                     st.session_state.user = user
+                    # Persiste ou limpa credenciais conforme checkbox
                     if lembrar:
                         st.session_state["remembered_user"] = usuario.strip().lower()
                         st.session_state["remembered_pass"] = senha
@@ -444,61 +443,73 @@ def page_login():
 # SIDEBAR
 # ─────────────────────────────────────────
 def render_sidebar():
-    user = st.session_state.user or {}
-    nome = user.get("nome","—")
+    user     = st.session_state.user or {}
+    nome     = user.get("nome", "—")
     initials = "".join(w[0] for w in nome.split()[:2]).upper()
+    current  = st.session_state.page
+
+    pages = [
+        ("⊞", "Dashboard",        "dashboard"),
+        ("👥", "Operadores",        "operadores"),
+        ("☑",  "Avaliações",        "avaliacoes"),
+        ("⏱", "Banco de Erros",    "bancoerros"),
+        ("✉",  "Entregar Feedback", "feedback_op"),
+        ("✦",  "IA de Qualidade",   "ia"),
+        ("📋", "Base QA",           "base_qa"),
+    ]
+    if user.get("perfil") == "admin":
+        pages.append(("⚙", "Configurações", "config"))
+
+    # Gera um bloco <style> único com todos os seletores ativos —
+    # um único st.markdown, sem nenhum div aberto/fechado separado.
+    active_css = ""
+    for _, _, pid in pages:
+        if pid == current:
+            active_css += f"""
+            [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"][key="nav_{pid}"],
+            [data-testid="stSidebar"] button[data-testid="baseButton-secondary"][key="nav_{pid}"] {{
+              border-left: 3px solid #FFD700 !important;
+              color: #FFD700 !important;
+              background: rgba(255,215,0,0.07) !important;
+            }}"""
 
     with st.sidebar:
+        # Cabeçalho — HTML completo, sem divs pendentes
         st.markdown(f"""
+        <style>{active_css}</style>
         <div style="padding:0 0 20px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:20px">
           <div style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:#FFD700">CX Command</div>
           <div style="font-size:9px;letter-spacing:0.12em;text-transform:uppercase;color:#a09d9c">Quality Management</div>
         </div>
         """, unsafe_allow_html=True)
 
-        pages = [
-            ("⊞", "Dashboard",         "dashboard"),
-            ("👥", "Operadores",         "operadores"),
-            ("☑", "Avaliações",         "avaliacoes"),
-            ("⏱", "Banco de Erros",     "bancoerros"),
-            ("✉", "Entregar Feedback",  "feedback_op"),
-            ("✦", "IA de Qualidade",    "ia"),
-            ("📋", "Base QA",            "base_qa"),
-        ]
-        if user.get("perfil") == "admin":
-            pages.append(("⚙", "Configurações", "config"))
-
-        current = st.session_state.page
-
-        # CORREÇÃO 2: destaque da página ativa via wrapper <div> inline,
-        # sem injetar <style> por loop (evita conflitos de especificidade a cada rerun)
+        # Botões de navegação — apenas st.button, sem markdown ao redor
         for icon, label, pid in pages:
-            is_active = (current == pid)
-            if is_active:
-                st.markdown(
-                    '<div style="border-left:3px solid #FFD700;background:rgba(255,215,0,0.06);'
-                    'border-radius:0 4px 4px 0;margin-bottom:2px">',
-                    unsafe_allow_html=True
-                )
             if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
                 st.session_state.page = pid
                 st.rerun()
-            if is_active:
-                st.markdown('</div>', unsafe_allow_html=True)
 
-        st.markdown("<div style='margin-top:auto;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)'></div>", unsafe_allow_html=True)
-
+        # Separador + perfil do usuário — HTML completo e fechado
         st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:10px;padding:8px 4px">
-          <div style="width:36px;height:36px;border-radius:50%;background:#2a2a2a;border:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:#FFD700;flex-shrink:0">{initials}</div>
-          <div><div style="font-size:13px;font-weight:600;color:#e5e2e1">{nome.split()[0]}</div><div style="font-size:11px;color:#a09d9c">{perfil_label(user.get("perfil",""))}</div></div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.08)">
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 4px">
+            <div style="width:36px;height:36px;border-radius:50%;background:#2a2a2a;border:1px solid rgba(255,255,255,0.08);
+                        display:flex;align-items:center;justify-content:center;
+                        font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;
+                        color:#FFD700;flex-shrink:0">{initials}</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:#e5e2e1">{nome.split()[0]}</div>
+              <div style="font-size:11px;color:#a09d9c">{perfil_label(user.get("perfil",""))}</div>
+            </div>
+          </div>
         </div>
         """, unsafe_allow_html=True)
 
+        # Botão de logout
         if st.button("⇥  Sair", use_container_width=True, key="btn_logout"):
             st.session_state.logged_in = False
-            st.session_state.user = None
-            st.session_state.page = "dashboard"
+            st.session_state.user      = None
+            st.session_state.page      = "dashboard"
             st.rerun()
 
 
@@ -509,6 +520,7 @@ def page_dashboard():
     section_title("Dashboard")
     section_sub("Visão geral da qualidade operacional em tempo real.")
 
+    # KPIs
     c1, c2, c3, c4 = st.columns(4)
     with c1: kpi_card("Nota Média Geral", "95.0", "▲ 4.2%", "yellow")
     with c2: kpi_card("Nota Mercado Pago", "92.1", "▲ 1.8%", "purple")
@@ -517,17 +529,39 @@ def page_dashboard():
 
     st.markdown("---")
 
+    # Gráfico principal + Tendências
     col_chart, col_trends = st.columns([2, 1])
     with col_chart:
         st.markdown('<div class="cx-card">', unsafe_allow_html=True)
         st.markdown('<div style="font-family:\'Space Grotesk\',sans-serif;font-size:16px;font-weight:600;margin-bottom:14px">Evolução Mensal Quality</div>', unsafe_allow_html=True)
         meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"]
+
+        # Gráfico com linhas suavizadas, preenchimento e legenda horizontal
         fig = line_chart(meses, [
-            {"name": "Média Geral",       "data": [70,72,68,75,80,78,82,85,88,90,93,95],      "color": "#FFD700",  "fill": "rgba(255,215,0,0.08)"},
-            {"name": "Mercado Pago",      "data": [65,68,65,70,72,70,74,78,80,83,88,92],      "color": "#dcb8ff",  "fill": "rgba(220,184,255,0.06)"},
-            {"name": "Avaliação Interna", "data": [72,75,72,78,82,80,84,88,90,92,95,96.5],    "color": "#00e479",  "fill": "rgba(0,228,121,0.05)"},
+            {
+                "name": "Média Geral",
+                "data": [70,72,68,75,80,78,82,85,88,90,93,95],
+                "color": "#FFD700",
+                "fill": "rgba(255,215,0,0.08)",
+            },
+            {
+                "name": "Mercado Pago",
+                "data": [65,68,65,70,72,70,74,78,80,83,88,92],
+                "color": "#dcb8ff",
+                "fill": "rgba(220,184,255,0.06)",
+            },
+            {
+                "name": "Avaliação Interna",
+                "data": [72,75,72,78,82,80,84,88,90,92,95,96.5],
+                "color": "#00e479",
+                "fill": "rgba(0,228,121,0.05)",
+            },
         ])
-        fig.update_layout(height=260, yaxis_range=[55, 100], margin=dict(l=0, r=0, t=40, b=0))
+        fig.update_layout(
+            height=260,
+            yaxis_range=[55, 100],
+            margin=dict(l=0, r=0, t=40, b=0),
+        )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -546,6 +580,7 @@ def page_dashboard():
 
     st.markdown("---")
 
+    # Top operadores + status
     col_ops, col_status = st.columns([2, 1])
     with col_ops:
         st.markdown('<div class="cx-card"><div style="font-family:\'Space Grotesk\',sans-serif;font-size:15px;font-weight:600;margin-bottom:14px">Operadores em Destaque</div>', unsafe_allow_html=True)
@@ -1257,41 +1292,14 @@ def page_base_qa():
                         except Exception as e:
                             texto = f"[Erro ao extrair: {e}]"
 
-                    with st.spinner("IA analisando avaliação — extraindo todos os critérios..."):
-                        texto_truncado = texto[:8000]
-                        prompt = f"""Você é um extrator de dados de documentos de avaliação de qualidade (QA) de call center.
-
-Leia o documento abaixo e extraia TODAS as informações de avaliação presentes.
-Retorne SOMENTE um JSON válido, sem markdown, sem texto antes ou depois.
-
-Regras:
-- Extraia TODOS os critérios de avaliação encontrados no documento, sem omitir nenhum.
-- Para cada critério, extraia o nome exato, a nota recebida e o peso (se disponível).
-- Se uma nota estiver em escala diferente de 0-10, converta proporcionalmente para 0-10.
-- Se não encontrar um campo, use null (não invente valores).
-- O campo "acertos" deve conter pontos positivos mencionados no documento.
-- O campo "erros" deve conter falhas ou pontos negativos mencionados.
-- O campo "melhorias" deve conter sugestões de desenvolvimento mencionadas.
-- O campo "observacoes" deve conter quaisquer outros comentários do avaliador.
-- "notaFinal" deve ser a nota geral final do documento (escala 0-100).
-- "softSkills" e "tecnico" devem ser extraídos se o documento os mencionar separadamente (escala 0-100).
+                    with st.spinner("IA analisando avaliação..."):
+                        prompt = f"""Analise este documento de avaliação QA e retorne SOMENTE JSON válido (sem markdown):
 
 DOCUMENTO:
-{texto_truncado}
+{texto[:4000]}
 
-Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
-{{
-  "notaFinal": null,
-  "softSkills": null,
-  "tecnico": null,
-  "criterios": [
-    {{"nome": "Nome exato do critério", "nota": null, "peso": "ex: 20%", "observacao": ""}}
-  ],
-  "acertos": "",
-  "erros": "",
-  "melhorias": "",
-  "observacoes": ""
-}}"""
+JSON esperado:
+{{"notaFinal":null,"softSkills":null,"tecnico":null,"criterios":[{{"nome":"","nota":null,"peso":""}}],"acertos":"","erros":"","melhorias":"","observacoes":""}}"""
                         resposta_ia = chamar_claude(prompt)
 
                     try:
@@ -1313,42 +1321,6 @@ Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
                 with c2: ss  = st.number_input("Soft Skills",  0.0, 100.0, float(dados.get("softSkills") or 0), key="qa_ss")
                 with c3: tec = st.number_input("Técnico",      0.0, 100.0, float(dados.get("tecnico")    or 0), key="qa_tec")
 
-                criterios_extraidos = dados.get("criterios", [])
-                if criterios_extraidos:
-                    st.markdown("""
-                    <div style="font-size:13px;font-weight:600;color:#a09d9c;margin:14px 0 8px;
-                                text-transform:uppercase;letter-spacing:0.08em;
-                                padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,0.08)">
-                      Critérios Extraídos
-                    </div>""", unsafe_allow_html=True)
-                    for i, crit in enumerate(criterios_extraidos):
-                        cc1, cc2, cc3 = st.columns([3, 1, 1])
-                        with cc1:
-                            st.text_input(
-                                f"Critério {i+1}",
-                                value=crit.get("nome", ""),
-                                key=f"qa_crit_nome_{i}"
-                            )
-                        with cc2:
-                            nota_raw = crit.get("nota")
-                            nota_val = float(nota_raw) if nota_raw is not None else 0.0
-                            st.number_input(
-                                "Nota (0-10)",
-                                min_value=0.0, max_value=10.0,
-                                value=min(nota_val, 10.0),
-                                step=0.1,
-                                key=f"qa_crit_nota_{i}"
-                            )
-                        with cc3:
-                            st.text_input(
-                                "Peso",
-                                value=crit.get("peso", ""),
-                                key=f"qa_crit_peso_{i}"
-                            )
-                        obs_crit = crit.get("observacao", "")
-                        if obs_crit:
-                            st.markdown(f'<div style="font-size:11px;color:#a09d9c;margin:-8px 0 10px;font-style:italic">{obs_crit}</div>', unsafe_allow_html=True)
-
                 acertos   = st.text_area("✓ Pontos Certos",      value=dados.get("acertos",""),    height=80, key="qa_ac")
                 erros     = st.text_area("✕ Pontos de Erro",     value=dados.get("erros",""),      height=80, key="qa_er")
                 melhorias = st.text_area("↗ Pontos de Melhoria", value=dados.get("melhorias",""),  height=80, key="qa_me")
@@ -1357,25 +1329,6 @@ Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
                 if st.button("💾 Salvar Avaliação", use_container_width=True, key="btn_salvar_qa"):
                     try:
                         user = st.session_state.user or {}
-
-                        criterios_str = ""
-                        if criterios_extraidos:
-                            linhas = []
-                            for i, crit in enumerate(criterios_extraidos):
-                                nome_c = st.session_state.get(f"qa_crit_nome_{i}", crit.get("nome",""))
-                                nota_c = st.session_state.get(f"qa_crit_nota_{i}", 0.0)
-                                peso_c = st.session_state.get(f"qa_crit_peso_{i}", crit.get("peso",""))
-                                linhas.append(f"• {nome_c} | Nota: {nota_c} | Peso: {peso_c}")
-                            criterios_str = "CRITÉRIOS:\n" + "\n".join(linhas) + "\n\n"
-
-                        parecer_completo = (
-                            f"{criterios_str}"
-                            f"Acertos: {acertos}\n"
-                            f"Erros: {erros}\n"
-                            f"Melhorias: {melhorias}\n"
-                            f"Obs: {obs}"
-                        )
-
                         db.save_avaliacao({
                             "operador": op_av,
                             "data_chamada": periodo_av,
@@ -1384,7 +1337,7 @@ Formato JSON de saída (retorne exatamente neste formato, sem texto adicional):
                             "soft_skills": ss,
                             "tecnico": tec,
                             "saudacao": "", "empatia": "", "resolucao": "", "encerramento": "",
-                            "parecer": parecer_completo,
+                            "parecer": f"Acertos: {acertos}\nErros: {erros}\nMelhorias: {melhorias}\nObs: {obs}",
                             "auditor": user.get("nome","Sistema"),
                         })
                         del st.session_state["qa_resultado"]
