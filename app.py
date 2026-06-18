@@ -125,11 +125,17 @@ html, body, [class*="css"] {
   box-shadow: none !important;
   opacity: 1 !important;
 }
-/* Botão ativo na sidebar — detectado via classe que adicionamos via JS workaround */
-[data-testid="stSidebar"] .stButton.nav-active > button {
-  background: rgba(255,215,0,0.08) !important;
-  color: #FFD700 !important;
-  border-left-color: #FFD700 !important;
+/* Tag da página ativa na sidebar — não é botão, é só um rótulo visual */
+[data-testid="stSidebar"] .cx-nav-active-tag {
+  background: rgba(255,215,0,0.1);
+  color: #FFD700;
+  border-left: 3px solid #FFD700;
+  border-radius: 0 6px 6px 0;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 9px 14px 9px 11px;
+  margin-bottom: 1px;
 }
 /* Botão sair — fica discreto */
 [data-testid="stSidebar"] .stButton:last-child > button {
@@ -237,9 +243,29 @@ hr { border-color: rgba(255,255,255,0.08) !important; }
 .cx-error   { background: rgba(255,59,59,0.08); border: 1px solid rgba(255,59,59,0.25); border-radius: 4px; padding: 12px 14px; color: #ff6b6b; }
 .cx-info    { background: rgba(255,215,0,0.08); border: 1px solid rgba(255,215,0,0.2); border-radius: 4px; padding: 12px 14px; color: #FFD700; }
 
-/* Ocultar elementos padrão do Streamlit */
-#MainMenu, footer, header { visibility: hidden; }
+/* Ocultar elementos padrão do Streamlit — MAS manter o botão de abrir/fechar a sidebar */
+#MainMenu, footer { visibility: hidden; }
 .stDeployButton { display: none !important; }
+
+/* Header fica transparente e sem altura, mas o botão da sidebar continua clicável */
+header[data-testid="stHeader"] {
+  background: transparent !important;
+  height: 2.5rem !important;
+}
+header[data-testid="stHeader"] * { visibility: visible !important; }
+
+/* Botão de abrir/recolher a sidebar — deixa bem visível em dourado */
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="collapsedControl"] button,
+button[kind="header"] {
+  color: #FFD700 !important;
+  opacity: 1 !important;
+}
+[data-testid="stSidebarCollapsedControl"] svg,
+[data-testid="collapsedControl"] svg {
+  fill: #FFD700 !important;
+  color: #FFD700 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -519,29 +545,17 @@ def render_sidebar():
 
         current = st.session_state.page
 
-        # Renderiza cada item como HTML clicável + botão invisível para navegação
         for icon, label, pid in pages:
             is_active = current == pid
-            bg     = "rgba(255,215,0,0.08)" if is_active else "transparent"
-            color  = "#FFD700"              if is_active else "#a09d9c"
-            border = "#FFD700"              if is_active else "transparent"
-            weight = "600"                  if is_active else "400"
-            st.markdown(f"""
-            <div style="
-              background:{bg};
-              border-left:3px solid {border};
-              border-radius:0 6px 6px 0;
-              padding:0;
-              margin-bottom:2px;
-            ">""", unsafe_allow_html=True)
-            if st.button(
-                f"{icon}  {label}",
-                key=f"nav_{pid}",
-                use_container_width=True,
-            ):
-                st.session_state.page = pid
-                st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
+            if is_active:
+                st.markdown(
+                    f'<div class="cx-nav-active-tag">{icon} {label}</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                if st.button(f"{icon}  {label}", key=f"nav_{pid}", use_container_width=True):
+                    st.session_state.page = pid
+                    st.rerun()
 
         # Linha separadora + chip do usuário
         st.markdown(f"""
